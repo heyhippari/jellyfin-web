@@ -93,7 +93,7 @@
     "swiper": "^6.7.5",
     "webcomponents.js": "^0.7.24",
     "whatwg-fetch": "^3.6.2",
-    "workbox-core": "^5.1.4",
+    "workbox-core": "^6.4.1",
     "workbox-precaching": "^5.1.4"
   },
   "browserslist": [
