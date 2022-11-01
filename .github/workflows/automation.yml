@@ -9,7 +9,7 @@ jobs:
     name: 'Merge conflict labeling'
     runs-on: ubuntu-latest
     steps:
-      - uses: eps1lon/actions-label-merge-conflict@v2.0.1
+      - uses: eps1lon/actions-label-merge-conflict@v2.1.0
         if: ${{ github.repository == 'jellyfin/jellyfin-web' }}
         with:
           dirtyLabel: 'merge conflict'
