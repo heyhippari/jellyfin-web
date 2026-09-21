@@ -1,3 +1,4 @@
+import ImageNotSupported from '@mui/icons-material/ImageNotSupported';
 import { isBlurhashValid } from 'blurhash';
 import React, { type FC, useCallback, useState } from 'react';
 import { BlurhashCanvas } from 'react-blurhash';
@@ -30,12 +31,17 @@ const ImageContent: FC<ImageProps> = ({
     const [isLoaded, setIsLoaded] = useState(false);
     const [isTransitionComplete, setIsTransitionComplete] = useState(false);
     const [isLoadStarted, setIsLoadStarted] = useState(false);
+    const [hasError, setHasError] = useState(false);
 
     const fadeinDuration = userSettings.enableFastFadein() ? '0.1s' : '0.5s';
     const transitionDuration = isLoaded ? fadeinDuration : 'none';
 
     const handleLoad = useCallback(() => {
         setIsLoaded(true);
+    }, []);
+
+    const handleError = useCallback(() => {
+        setHasError(true);
     }, []);
 
     const handleTransitionEnd = useCallback(() => {
@@ -45,6 +51,29 @@ const ImageContent: FC<ImageProps> = ({
     const handleLoadStarted = useCallback(() => {
         setIsLoadStarted(true);
     }, []);
+
+    if (hasError) {
+        return (
+            <div
+                role='img'
+                aria-label='Image failed to load'
+                style={{
+                    ...imageStyle,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                }}
+            >
+                <ImageNotSupported
+                    aria-hidden
+                    sx={{
+                        width: '25%',
+                        height: '25%'
+                    }}
+                />
+            </div>
+        );
+    }
 
     return (
         <div>
@@ -70,6 +99,7 @@ const ImageContent: FC<ImageProps> = ({
                     transition: transitionDuration
                 }}
                 onLoad={handleLoad}
+                onError={handleError}
                 onTransitionEnd={handleTransitionEnd}
                 beforeLoad={handleLoadStarted}
             />

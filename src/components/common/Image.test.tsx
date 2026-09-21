@@ -18,9 +18,9 @@ vi.mock('../../scripts/settings/userSettings', () => ({
 
 // Control the lazy-loader boundary without relying on viewport geometry or network requests.
 vi.mock('react-lazy-load-image-component', () => ({
-    LazyLoadImage: ({ beforeLoad, src, style, onLoad, onTransitionEnd, alt }: LazyLoadImageProps) => {
+    LazyLoadImage: ({ beforeLoad, src, style, onLoad, onError, onTransitionEnd, alt }: LazyLoadImageProps) => {
         lazyImage.beforeLoad = beforeLoad;
-        return <img src={src} alt={alt} style={style} onLoad={onLoad} onTransitionEnd={onTransitionEnd} />;
+        return <img src={src} alt={alt} style={style} onLoad={onLoad} onError={onError} onTransitionEnd={onTransitionEnd} />;
     }
 }));
 
@@ -113,6 +113,50 @@ describe('Image', () => {
 
         fireEvent.transitionEnd(image, { propertyName: 'opacity' });
 
+        expect(image).toHaveStyle({ opacity: '1' });
+        expect(screen.queryByTestId('blurhash')).not.toBeInTheDocument();
+    });
+
+    it.each([
+        { placeholder: 'with', hash: firstHash },
+        { placeholder: 'without', hash: undefined }
+    ])('shows a failure indicator $placeholder a blurhash and recovers when the URL changes', ({ hash }) => {
+        const { rerender } = render(<Image imgUrl={firstUrl} blurhash={hash} containImage />);
+        startLoading();
+
+        if (hash) {
+            expect(screen.getByTestId('blurhash')).toBeInTheDocument();
+        }
+
+        fireEvent.error(screen.getByRole('img'));
+
+        expect(screen.getByRole('img', { name: 'Image failed to load' })).toBeInTheDocument();
+        expect(screen.queryByTestId('blurhash')).not.toBeInTheDocument();
+
+        // Updating presentation for the failed source must not retry the request.
+        rerender(<Image imgUrl={firstUrl} blurhash={secondHash} containImage={false} />);
+
+        expect(screen.getByRole('img', { name: 'Image failed to load' })).toBeInTheDocument();
+        expect(screen.queryByTestId('blurhash')).not.toBeInTheDocument();
+
+        rerender(<Image imgUrl={secondUrl} blurhash={secondHash} containImage />);
+        const image = screen.getByRole('img');
+
+        expect(image).toHaveAttribute('src', secondUrl);
+        expect(image).toHaveStyle({ opacity: '0', transition: 'none' });
+        expect(screen.queryByTestId('blurhash')).not.toBeInTheDocument();
+
+        startLoading();
+
+        expect(screen.getByTestId('blurhash')).toHaveAttribute('data-hash', secondHash);
+
+        fireEvent.load(image);
+
+        expect(image).toHaveStyle({ opacity: '1', transition: '0.5s' });
+
+        fireEvent.transitionEnd(image, { propertyName: 'opacity' });
+
+        expect(image).toBeInTheDocument();
         expect(image).toHaveStyle({ opacity: '1' });
         expect(screen.queryByTestId('blurhash')).not.toBeInTheDocument();
     });
