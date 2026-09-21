@@ -92,7 +92,10 @@ describe('Image', () => {
     it.each([
         { reason: 'disabled', enabled: false, hash: firstHash },
         { reason: 'missing', enabled: true, hash: undefined },
-        { reason: 'empty', enabled: true, hash: '' }
+        { reason: 'empty', enabled: true, hash: '' },
+        { reason: 'too short', enabled: true, hash: 'bad' },
+        { reason: 'truncated', enabled: true, hash: firstHash.slice(0, -1) },
+        { reason: 'too long', enabled: true, hash: `${firstHash}0` }
     ])('loads without a placeholder when blurhash is $reason', ({ enabled, hash }) => {
         vi.mocked(enableBlurhash).mockReturnValue(enabled);
         render(<Image imgUrl={firstUrl} blurhash={hash} containImage />);

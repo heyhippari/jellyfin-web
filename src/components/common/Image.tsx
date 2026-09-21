@@ -1,3 +1,4 @@
+import { isBlurhashValid } from 'blurhash';
 import React, { type FC, useCallback, useState } from 'react';
 import { BlurhashCanvas } from 'react-blurhash';
 import { LazyLoadImage } from 'react-lazy-load-image-component';
@@ -47,10 +48,10 @@ const ImageContent: FC<ImageProps> = ({
 
     return (
         <div>
-            {!isTransitionComplete && isLoadStarted && blurhash && userSettings.enableBlurhash() && (
+            {!isTransitionComplete && isLoadStarted && blurhash && userSettings.enableBlurhash() && isBlurhashValid(blurhash).result && (
                 <BlurhashCanvas
                     hash={blurhash}
-                    width= {20}
+                    width={20}
                     height={20}
                     punch={1}
                     style={{
