@@ -21,7 +21,7 @@ interface ImageProps {
     containImage: boolean;
 }
 
-const Image: FC<ImageProps> = ({
+const ImageContent: FC<ImageProps> = ({
     imgUrl,
     blurhash,
     containImage
@@ -61,7 +61,6 @@ const Image: FC<ImageProps> = ({
                 />
             )}
             <LazyLoadImage
-                key={imgUrl}
                 src={imgUrl}
                 style={{
                     ...imageStyle,
@@ -77,5 +76,8 @@ const Image: FC<ImageProps> = ({
         </div>
     );
 };
+
+// Each source owns its loading lifecycle, including the blurhash and fade state.
+const Image: FC<ImageProps> = (props) => <ImageContent key={props.imgUrl} {...props} />;
 
 export default Image;
