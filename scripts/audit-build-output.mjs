@@ -5,6 +5,12 @@ import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
+import {
+    COPIED_ROOT_FILES,
+    FAVICON_FILES,
+    LIBRARY_COPIES
+} from './static-build-contract.mjs';
+
 export const STABLE_ROOT_FILES = [
     'index.html',
     'config.json',
@@ -20,16 +26,7 @@ export const STABLE_DIRECTORIES = [
     'themes'
 ];
 
-export const LIBRARY_FILES = [
-    'default.woff2',
-    'libarchive.wasm',
-    'npo.js',
-    'pdf.worker.js',
-    'subtitles-octopus-worker-legacy.js',
-    'subtitles-octopus-worker.js',
-    'subtitles-octopus-worker.wasm',
-    'worker-bundle.js'
-];
+export const LIBRARY_FILES = LIBRARY_COPIES.map(({ target }) => target).sort();
 
 export const PLAYER_LIBRARY_CONTRACTS = [
     {
@@ -224,6 +221,17 @@ const extractServiceWorkerDependencies = source => {
     };
 };
 
+export const getServiceWorkerErrors = serviceWorker => {
+    const errors = [];
+    if (serviceWorker.pageScriptReference) {
+        errors.push('serviceworker.js is referenced as a page script');
+    }
+    if (serviceWorker.importsSharedApplicationChunks) {
+        errors.push('serviceworker.js depends on shared application/runtime chunks');
+    }
+    return errors;
+};
+
 const readJson = async (filePath, errors, label) => {
     try {
         return JSON.parse(await readFile(filePath, 'utf8'));
@@ -248,6 +256,19 @@ const checkDirectory = async (directory, errors, label) => {
         if (!directoryStats.isDirectory()) errors.push(`${label} is not a directory`);
     } catch {
         errors.push(`${label} is missing`);
+    }
+};
+
+const checkCopiedFile = async (source, target, errors, label) => {
+    await checkFile(target, errors, label);
+    try {
+        const [ sourceContents, targetContents ] = await Promise.all([
+            readFile(source),
+            readFile(target)
+        ]);
+        if (!sourceContents.equals(targetContents)) errors.push(`${label} differs from its source`);
+    } catch {
+        // checkFile reports a missing target; source failures are reported by the copy build itself.
     }
 };
 
@@ -278,23 +299,34 @@ export const auditBuildOutput = async ({
         );
     }
 
+    for (const fileName of COPIED_ROOT_FILES) {
+        await checkCopiedFile(
+            path.join(projectRoot, 'src', fileName),
+            path.join(resolvedDistDirectory, fileName),
+            errors,
+            `copied root file ${fileName}`
+        );
+    }
+
     const sourceAssetsDirectory = path.join(projectRoot, 'src/assets');
     const sourceAssetFiles = await pathExists(sourceAssetsDirectory) ?
         await listFiles(sourceAssetsDirectory) :
         [];
     for (const relativePath of sourceAssetFiles) {
-        await checkFile(
+        await checkCopiedFile(
+            path.join(sourceAssetsDirectory, relativePath),
             path.join(resolvedDistDirectory, 'assets', relativePath),
             errors,
             `copied asset assets/${relativePath}`
         );
     }
 
-    for (const libraryFile of LIBRARY_FILES) {
-        await checkFile(
-            path.join(resolvedDistDirectory, 'libraries', libraryFile),
+    for (const { source, target } of LIBRARY_COPIES) {
+        await checkCopiedFile(
+            path.join(projectRoot, 'node_modules', source),
+            path.join(resolvedDistDirectory, 'libraries', target),
             errors,
-            `copied library libraries/${libraryFile}`
+            `copied library libraries/${target}`
         );
     }
 
@@ -304,11 +336,10 @@ export const auditBuildOutput = async ({
     );
     let faviconFiles = [];
     if (await pathExists(faviconSourceDirectory)) {
-        faviconFiles = (await readdir(faviconSourceDirectory))
-            .filter(fileName => /^touchicon.*\.png$/i.test(fileName))
-            .sort();
+        faviconFiles = [ ...FAVICON_FILES ].sort();
         for (const faviconFile of faviconFiles) {
-            await checkFile(
+            await checkCopiedFile(
+                path.join(faviconSourceDirectory, faviconFile),
                 path.join(resolvedDistDirectory, 'favicons', faviconFile),
                 errors,
                 `copied favicon favicons/${faviconFile}`
@@ -442,20 +473,8 @@ export const auditBuildOutput = async ({
         };
     }
 
-    const baselineExceptions = [
-        {
-            active: serviceWorker.pageScriptReference,
-            id: 'webpack-service-worker-page-script',
-            removeIn: 'PR 5',
-            summary: 'Webpack injects serviceworker.js into index.html as a page script.'
-        }
-    ];
-    if (serviceWorker.pageScriptReference) {
-        warnings.push('baseline exception active: serviceworker.js is referenced as a page script');
-    }
-    if (serviceWorker.importsSharedApplicationChunks) {
-        warnings.push('serviceworker.js depends on shared application/runtime chunks');
-    }
+    const baselineExceptions = [];
+    errors.push(...getServiceWorkerErrors(serviceWorker));
 
     return {
         schemaVersion: 1,
