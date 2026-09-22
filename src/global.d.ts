@@ -20,6 +20,7 @@ export declare global {
         'viewshow': CustomEvent;
     }
 
+    // Replaced at build time by both Webpack DefinePlugin and Vite define.
     const __COMMIT_SHA__: string;
     const __JF_BUILD_VERSION__: string;
     const __PACKAGE_JSON_NAME__: string;
