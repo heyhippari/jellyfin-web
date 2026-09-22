@@ -15,6 +15,15 @@ import stylistic from '@stylistic/eslint-plugin';
 // eslint-disable-next-line import/no-unresolved
 import tseslint from 'typescript-eslint';
 
+const buildTimeGlobals = {
+    __COMMIT_SHA__: 'readonly',
+    __JF_BUILD_VERSION__: 'readonly',
+    __PACKAGE_JSON_NAME__: 'readonly',
+    __PACKAGE_JSON_VERSION__: 'readonly',
+    __USE_SYSTEM_FONTS__: 'readonly',
+    __DEV_SERVER__: 'readonly'
+};
+
 export default tseslint.config(
     eslint.configs.recommended,
     tseslint.configs.recommended,
@@ -230,12 +239,7 @@ export default tseslint.config(
                 'LibraryMenu': true,
                 'Windows': false,
                 // Build time definitions
-                __COMMIT_SHA__: false,
-                __JF_BUILD_VERSION__: false,
-                __PACKAGE_JSON_NAME__: false,
-                __PACKAGE_JSON_VERSION__: false,
-                __USE_SYSTEM_FONTS__: false,
-                __DEV_SERVER__: false
+                ...buildTimeGlobals
             }
         },
         settings: {
