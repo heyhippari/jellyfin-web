@@ -8,6 +8,7 @@ import { resolve } from 'node:path';
 import { defineConfig, type Plugin } from 'vite';
 
 import { assertSupportedViteVersions } from './scripts/vite-version-guard.mjs';
+import { staticCopyPlugin } from './vite.copy';
 import { createTsconfigPathsPlugin, repositoryRoot } from './vite.shared';
 
 const require = createRequire(import.meta.url);
@@ -34,6 +35,7 @@ export default defineConfig(({ command, isPreview, mode }) => ({
     }),
     plugins: [
         versionGuard(),
+        staticCopyPlugin(),
         createTsconfigPathsPlugin(),
         react(),
         legacy({

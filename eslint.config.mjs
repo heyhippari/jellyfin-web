@@ -201,6 +201,14 @@ export default tseslint.config(
         }
     },
 
+    // Vite config and plugins run in Node and are not shipped to supported browsers
+    {
+        files: [ 'vite*.ts' ],
+        rules: {
+            'compat/compat': 'off'
+        }
+    },
+
     // Config files are commonjs by default
     {
         files: [ '**/*.{cjs,js}' ],

@@ -64,7 +64,13 @@ const config = {
                     to: 'assets'
                 },
                 'config.json',
+                'manifest.json',
                 'robots.txt',
+                {
+                    from: 'favicon.ico',
+                    context: path.resolve(__dirname, 'node_modules/@jellyfin/ux-web/favicons'),
+                    to: 'favicons'
+                },
                 {
                     from: 'touchicon*.png',
                     context: path.resolve(__dirname, 'node_modules/@jellyfin/ux-web/favicons'),
@@ -168,7 +174,15 @@ const config = {
             {
                 test: /\.html$/,
                 use: {
-                    loader: 'html-loader'
+                    loader: 'html-loader',
+                    options: {
+                        sources: {
+                            urlFilter: (_attribute, value) => !(
+                                value === './manifest.json'
+                                || value.startsWith('./favicons/')
+                            )
+                        }
+                    }
                 }
             },
             {
