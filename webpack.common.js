@@ -7,6 +7,7 @@ const HtmlWebpackPlugin = require('html-webpack-plugin');
 const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 const { DefinePlugin, IgnorePlugin } = require('webpack');
 const packageJson = require('./package.json');
+const { getBuildDefinitions } = require('./scripts/build-constants.cjs');
 
 const Assets = [
     'native-promise-only/npo.js',
@@ -20,16 +21,6 @@ const Assets = [
 ];
 
 const DEV_MODE = process.env.NODE_ENV !== 'production';
-let COMMIT_SHA = '';
-try {
-    COMMIT_SHA = require('child_process')
-        // eslint-disable-next-line sonarjs/no-os-command-from-path
-        .execSync('git describe --always --dirty')
-        .toString()
-        .trim();
-} catch (err) {
-    console.warn('Failed to get commit sha. Is git installed?', err);
-}
 
 const NODE_MODULES_REGEX = /[\\/]node_modules[\\/]/;
 
@@ -54,17 +45,7 @@ const config = {
         ]
     },
     plugins: [
-        new DefinePlugin({
-            __COMMIT_SHA__: JSON.stringify(COMMIT_SHA),
-            __JF_BUILD_VERSION__: JSON.stringify(
-                process.env.WEBPACK_SERVE ?
-                    'Dev Server' :
-                    process.env.JELLYFIN_VERSION || 'Release'),
-            __PACKAGE_JSON_NAME__: JSON.stringify(packageJson.name),
-            __PACKAGE_JSON_VERSION__: JSON.stringify(packageJson.version),
-            __USE_SYSTEM_FONTS__: !!JSON.parse(process.env.USE_SYSTEM_FONTS || '0'),
-            __WEBPACK_SERVE__: !!JSON.parse(process.env.WEBPACK_SERVE || '0')
-        }),
+        new DefinePlugin(getBuildDefinitions({ packageJson })),
         new CleanWebpackPlugin(),
         new HtmlWebpackPlugin({
             filename: 'index.html',
@@ -364,13 +345,6 @@ const config = {
             {
                 test: /\.(mp3)$/i,
                 type: 'asset/resource'
-            },
-            {
-                test: require.resolve('jquery'),
-                loader: 'expose-loader',
-                options: {
-                    exposes: ['$', 'jQuery']
-                }
             }
         ]
     }

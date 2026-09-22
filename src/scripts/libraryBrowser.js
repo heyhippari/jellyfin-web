@@ -1,4 +1,5 @@
 import globalize from 'lib/globalize';
+import 'lib/legacy/jqueryGlobals';
 
 export function showLayoutMenu (button, currentLayout, views) {
     let dispatchEvent = true;

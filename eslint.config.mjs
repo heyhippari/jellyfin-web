@@ -221,9 +221,6 @@ export default tseslint.config(
                 'webapis': false,
                 // WebOS globals
                 'webOS': false,
-                // Dependency globals
-                '$': false,
-                'jQuery': false,
                 // Jellyfin globals
                 'ApiClient': true,
                 'Events': true,
@@ -238,7 +235,7 @@ export default tseslint.config(
                 __PACKAGE_JSON_NAME__: false,
                 __PACKAGE_JSON_VERSION__: false,
                 __USE_SYSTEM_FONTS__: false,
-                __WEBPACK_SERVE__: false
+                __DEV_SERVER__: false
             }
         },
         settings: {
@@ -384,6 +381,30 @@ export default tseslint.config(
             '@typescript-eslint/no-deprecated': 'warn',
             '@typescript-eslint/no-floating-promises': 'error',
             '@typescript-eslint/prefer-string-starts-ends-with': 'error'
+        }
+    },
+
+    // Legacy files that still consume jQuery through its compatibility globals
+    {
+        files: [
+            'src/components/tvproviders/schedulesdirect.js',
+            'src/components/tvproviders/xmltv.js',
+            'src/components/viewContainer.js',
+            'src/scripts/editorsidebar.js',
+            'src/scripts/libraryBrowser.js'
+        ],
+        languageOptions: {
+            globals: {
+                '$': false
+            }
+        }
+    },
+    {
+        files: [ 'src/scripts/editorsidebar.js' ],
+        languageOptions: {
+            globals: {
+                'jQuery': false
+            }
         }
     },
 
