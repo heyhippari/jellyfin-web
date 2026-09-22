@@ -14,7 +14,7 @@ import '../../elements/emby-button/paper-icon-button-light';
 import '../../elements/emby-button/emby-button';
 import '../formdialog.scss';
 import '../cardbuilder/card.scss';
-import template from './imageDownloader.template.html';
+import template from './imageDownloader.template.html?raw';
 
 const enableFocusTransform = !browser.slow && !browser.edge;
 
@@ -393,4 +393,3 @@ export function show(itemId, serverId, itemType, imageType, parentId) {
 export default {
     show: show
 };
-

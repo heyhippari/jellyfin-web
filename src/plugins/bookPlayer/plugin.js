@@ -19,7 +19,7 @@ import { renderComponent } from '../../utils/reactUtils';
 import 'material-design-icons-iconfont';
 import '../../elements/emby-button/paper-icon-button-light';
 
-import html from './template.html';
+import html from './template.html?raw';
 import './style.scss';
 
 const THEMES = {

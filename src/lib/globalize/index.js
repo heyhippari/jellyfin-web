@@ -263,7 +263,9 @@ export function translate(key) {
 }
 
 export function translateHtml(html, module) {
-    html = html.default || html;
+    if (typeof html !== 'string') {
+        throw new TypeError('html must be a string');
+    }
 
     if (!module) {
         module = defaultModule();

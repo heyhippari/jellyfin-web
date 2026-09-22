@@ -8,7 +8,7 @@ import scrollHelper from '../../scripts/scrollHelper';
 import layoutManager from '../layoutManager';
 import globalize from '../../lib/globalize';
 import { ServerConnections } from 'lib/jellyfin-apiclient';
-import template from './subtitleuploader.template.html';
+import template from './subtitleuploader.template.html?raw';
 import toast from '../toast/toast';
 
 import '../../elements/emby-button/emby-button';

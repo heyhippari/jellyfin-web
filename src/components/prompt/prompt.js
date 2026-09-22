@@ -8,7 +8,7 @@ import '../../elements/emby-button/emby-button';
 import '../../elements/emby-button/paper-icon-button-light';
 import '../../elements/emby-input/emby-input';
 import '../formdialog.scss';
-import template from './prompt.template.html';
+import template from './prompt.template.html?raw';
 
 export default (() => {
     function setInputProperties(dlg, options) {

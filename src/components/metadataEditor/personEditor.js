@@ -7,7 +7,7 @@ import '../../elements/emby-button/paper-icon-button-light';
 import '../../elements/emby-input/emby-input';
 import '../../elements/emby-select/emby-select';
 import '../formdialog.scss';
-import template from './personEditor.template.html';
+import template from './personEditor.template.html?raw';
 
 function centerFocus(elem, horiz, on) {
     import('../../scripts/scrollHelper').then((scrollHelper) => {
@@ -104,4 +104,3 @@ function show(person) {
 export default {
     show: show
 };
-

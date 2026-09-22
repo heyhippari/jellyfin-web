@@ -10,7 +10,7 @@ import '../../elements/emby-button/paper-icon-button-light';
 import './recordingfields.scss';
 import '../../styles/flexstyles.scss';
 import toast from '../toast/toast';
-import template from './recordingfields.template.html';
+import template from './recordingfields.template.html?raw';
 
 function loadData(parent, program) {
     if (program.IsSeries) {

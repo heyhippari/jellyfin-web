@@ -19,7 +19,7 @@ import '../../elements/emby-checkbox/emby-checkbox';
 import '../../styles/flexstyles.scss';
 import './subtitlesettings.scss';
 import toast from '../toast/toast';
-import template from './subtitlesettings.template.html';
+import template from './subtitlesettings.template.html?raw';
 
 /**
  * Subtitle settings.

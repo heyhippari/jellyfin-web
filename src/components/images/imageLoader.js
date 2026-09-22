@@ -1,9 +1,9 @@
-import Worker from './blurhash.worker.ts'; // eslint-disable-line import/default
 import * as lazyLoader from '../lazyLoader/lazyLoaderIntersectionObserver';
 import * as userSettings from '../../scripts/settings/userSettings';
 import './style.scss';
 
-const worker = new Worker();
+// The default Worker type is classic, which is required by the legacy browser contract.
+const worker = new Worker(new URL('./blurhash.worker.ts', import.meta.url));
 const targetDic = {};
 worker.addEventListener(
     'message',

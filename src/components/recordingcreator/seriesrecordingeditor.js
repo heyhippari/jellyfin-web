@@ -16,7 +16,7 @@ import '../formdialog.scss';
 import './recordingcreator.scss';
 import 'material-design-icons-iconfont';
 import '../../styles/flexstyles.scss';
-import template from './seriesrecordingeditor.template.html';
+import template from './seriesrecordingeditor.template.html?raw';
 
 let currentDialog;
 let recordingUpdated = false;

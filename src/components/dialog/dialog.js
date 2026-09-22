@@ -11,7 +11,7 @@ import '../../elements/emby-button/paper-icon-button-light';
 import '../../elements/emby-input/emby-input';
 import '../formdialog.scss';
 import '../../styles/flexstyles.scss';
-import template from './dialog.template.html';
+import template from './dialog.template.html?raw';
 
 function showDialog(options = { dialogOptions: {}, buttons: [] }) {
     const dialogOptions = {

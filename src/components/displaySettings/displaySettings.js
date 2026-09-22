@@ -18,7 +18,7 @@ import skinManager from '../../scripts/themeManager';
 import Events from '../../utils/events.ts';
 import toast from '../toast/toast';
 
-import template from './displaySettings.template.html';
+import template from './displaySettings.template.html?raw';
 
 import '../../elements/emby-select/emby-select';
 import '../../elements/emby-checkbox/emby-checkbox';

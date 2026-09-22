@@ -21,7 +21,7 @@ import '../../elements/emby-button/emby-button';
 import '../../styles/flexstyles.scss';
 import toast from '../toast/toast';
 import confirm from '../confirm/confirm';
-import template from './subtitleeditor.template.html';
+import template from './subtitleeditor.template.html?raw';
 
 let currentItem;
 let hasChanges;

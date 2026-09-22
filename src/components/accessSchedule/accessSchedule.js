@@ -9,7 +9,7 @@ import globalize from '../../lib/globalize';
 import '../../elements/emby-select/emby-select';
 import '../../elements/emby-button/paper-icon-button-light';
 import '../formdialog.scss';
-import template from './accessSchedule.template.html';
+import template from './accessSchedule.template.html?raw';
 
 function getDisplayTime(hours) {
     let minutes = 0;
