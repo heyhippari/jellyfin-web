@@ -26,7 +26,7 @@ import 'material-design-icons-iconfont';
 
 import 'styles/flexstyles.scss';
 
-import template from './itemMediaInfo.template.html';
+import template from './itemMediaInfo.template.html?raw';
 
 // Do not add extra spaces between tags - they will be copied into the result
 const copyButtonHtml = layoutManager.tv ? '' :

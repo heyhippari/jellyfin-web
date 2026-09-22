@@ -19,7 +19,7 @@ import '../../elements/emby-button/paper-icon-button-light';
 import './imageeditor.scss';
 import alert from '../alert';
 import confirm from '../confirm/confirm';
-import template from './imageeditor.template.html';
+import template from './imageeditor.template.html?raw';
 
 const enableFocusTransform = !browser.slow && !browser.edge;
 

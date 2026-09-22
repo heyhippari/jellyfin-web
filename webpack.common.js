@@ -166,7 +166,7 @@ const config = {
     module: {
         rules: [
             {
-                test: /\.(html)$/,
+                test: /\.html$/,
                 use: {
                     loader: 'html-loader'
                 }
@@ -248,19 +248,6 @@ const config = {
                         cacheDirectory: true
                     }
                 }]
-            },
-            {
-                test: /\.worker\.ts$/,
-                exclude: /node_modules/,
-                use: [
-                    'worker-loader',
-                    {
-                        loader: 'ts-loader',
-                        options: {
-                            transpileOnly: true
-                        }
-                    }
-                ]
             },
             {
                 test: /\.(ts|tsx)$/,

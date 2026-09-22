@@ -19,7 +19,7 @@ import '../formdialog.scss';
 import './recordingcreator.scss';
 import 'material-design-icons-iconfont';
 import { playbackManager } from '../playback/playbackmanager';
-import template from './recordingcreator.template.html';
+import template from './recordingcreator.template.html?raw';
 
 import PlaceholderImage from './empty.png';
 

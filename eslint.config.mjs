@@ -340,6 +340,7 @@ export default tseslint.config(
             ]
         },
         rules: {
+            'import/no-unresolved': [ 'error', { ignore: [ '\\.html\\?raw$' ] } ],
             // TODO: Add typescript recommended typed rules
             '@typescript-eslint/naming-convention': [
                 'error',

@@ -8,7 +8,7 @@ import 'material-design-icons-iconfont';
 import '../formdialog.scss';
 import '../../elements/emby-button/emby-button';
 import '../../styles/flexstyles.scss';
-import template from './sortmenu.template.html';
+import template from './sortmenu.template.html?raw';
 
 function onSubmit(e) {
     e.preventDefault();

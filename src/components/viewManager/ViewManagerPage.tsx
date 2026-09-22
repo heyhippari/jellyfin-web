@@ -43,19 +43,19 @@ const importController = (
             return Promise.all([
                 import(/* webpackChunkName: "[request]" */ `../../apps/dashboard/controllers/${controller}`),
                 import(/* webpackChunkName: "[request]" */ `../../apps/dashboard/controllers/${view}`)
-                    .then(html => globalize.translateHtml(html))
+                    .then(({ default: html }) => globalize.translateHtml(html))
             ]);
         case AppType.Wizard:
             return Promise.all([
                 import(/* webpackChunkName: "[request]" */ `../../apps/wizard/controllers/${controller}`),
                 import(/* webpackChunkName: "[request]" */ `../../apps/wizard/controllers/${view}`)
-                    .then(html => globalize.translateHtml(html))
+                    .then(({ default: html }) => globalize.translateHtml(html))
             ]);
         default:
             return Promise.all([
                 import(/* webpackChunkName: "[request]" */ `../../apps/legacy/controllers/${controller}`),
                 import(/* webpackChunkName: "[request]" */ `../../apps/legacy/controllers/${view}`)
-                    .then(html => globalize.translateHtml(html))
+                    .then(({ default: html }) => globalize.translateHtml(html))
             ]);
     }
 };

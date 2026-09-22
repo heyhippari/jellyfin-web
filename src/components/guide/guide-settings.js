@@ -7,7 +7,7 @@ import '../../elements/emby-checkbox/emby-checkbox';
 import '../../elements/emby-radio/emby-radio';
 import '../formdialog.scss';
 import 'material-design-icons-iconfont';
-import template from './guide-settings.template.html';
+import template from './guide-settings.template.html?raw';
 
 function saveCategories(context, options) {
     const categories = [];

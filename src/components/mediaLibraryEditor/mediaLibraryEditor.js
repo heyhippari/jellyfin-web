@@ -19,7 +19,7 @@ import './style.scss';
 import alert from '../alert';
 import toast from '../toast/toast';
 import confirm from '../confirm/confirm';
-import template from './mediaLibraryEditor.template.html';
+import template from './mediaLibraryEditor.template.html?raw';
 
 // eslint-disable-next-line sonarjs/no-invariant-returns
 function onEditLibrary() {

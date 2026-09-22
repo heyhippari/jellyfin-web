@@ -17,7 +17,7 @@ function init(page, type, providerId) {
 }
 
 function loadTemplate(page, type, providerId) {
-    import(`components/tvproviders/${type}.template.html`).then(({ default: html }) => {
+    import(`components/tvproviders/${type}.template.html?raw`).then(({ default: html }) => {
         page.querySelector('.providerTemplate').innerHTML = globalize.translateHtml(html);
         init(page, type, providerId);
     });
