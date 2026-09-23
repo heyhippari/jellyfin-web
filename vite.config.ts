@@ -20,6 +20,17 @@ const packageJson = JSON.parse(
     readFileSync(resolve(repositoryRoot, 'package.json'), 'utf8')
 );
 
+// date-fns locales are selected lazily at runtime. Vite's dev dependency scan
+// cannot discover those imports, so prebundle the CommonJS entry points that
+// dateFnsLocale.ts can request.
+const DATE_FNS_LOCALE_MODULES = [
+    'af', 'ar-DZ', 'be', 'bg', 'bn', 'ca', 'cs', 'cy', 'da', 'de', 'el',
+    'en-GB', 'en-US', 'eo', 'es', 'et', 'eu', 'fa-IR', 'fi', 'fr', 'fr-CA',
+    'gl', 'he', 'hi', 'hr', 'hu', 'id', 'is', 'it', 'ja', 'kk', 'ko', 'lt',
+    'lv', 'ms', 'nb', 'nl', 'nn', 'pl', 'pt', 'pt-BR', 'ro', 'ru', 'sk',
+    'sl', 'sv', 'ta', 'th', 'tr', 'uk', 'vi', 'zh-CN', 'zh-HK', 'zh-TW'
+].map(locale => `date-fns/locale/${locale}/index.js`);
+
 const versionGuard = (): Plugin => ({
     name: 'jellyfin-vite-version-guard',
     apply: 'build',
@@ -35,6 +46,9 @@ export default defineConfig(({ command, isPreview, mode }) => ({
         devServer: command === 'serve' && !isPreview,
         packageJson
     }),
+    optimizeDeps: {
+        include: DATE_FNS_LOCALE_MODULES
+    },
     plugins: [
         versionGuard(),
         libarchiveWorkerPlugin(),
@@ -46,6 +60,23 @@ export default defineConfig(({ command, isPreview, mode }) => ({
             renderModernChunks: true,
             renderLegacyChunks: true,
             polyfills: true,
+            // DOM APIs are not discovered by preset-env's usage analysis. Keep
+            // them in Vite's nomodule-only polyfill graph; modern browsers load
+            // them only through feature detection in lib/legacy/index.ts.
+            // AbortController must follow fetch because it patches fetch.
+            additionalLegacyPolyfills: [
+                'element-closest-polyfill',
+                'fast-text-encoding',
+                'intersection-observer',
+                'classlist.js',
+                'whatwg-fetch',
+                'abortcontroller-polyfill',
+                'resize-observer-polyfill',
+                'proxy-polyfill',
+                // Legacy async transforms can need regenerator-runtime. Defining
+                // globalThis first avoids its CSP-incompatible Function fallback.
+                'core-js/proposals/global-this'
+            ],
             modernPolyfills: false
         })
     ],

@@ -59,6 +59,41 @@ while (pendingInitialImports.length > 0) {
     pendingInitialImports.push(...(manifest[source]?.imports ?? []));
 }
 
+const modernInitialFiles = [ ...initialGraph ]
+    .map(source => manifest[source]?.file)
+    .filter(Boolean);
+
+assert.ok(modernInitialFiles.length > 0, 'The modern initial graph must contain emitted files.');
+assert.equal(
+    initialGraph.has('../vite/legacy-polyfills-legacy'),
+    false,
+    'The modern initial graph must not reach Vite’s core-js/regenerator legacy polyfill chunk.'
+);
+
+const legacyPolyfill = manifest['../vite/legacy-polyfills-legacy'];
+assert.ok(legacyPolyfill?.file, 'The manifest must contain the legacy polyfill chunk.');
+const legacyPolyfillSource = readFileSync(
+    new URL(`../dist/${legacyPolyfill.file}`, import.meta.url),
+    'utf8'
+);
+
+for (const [ api, pattern ] of [
+    [ 'Element.closest', /\.closest\b/ ],
+    [ 'TextEncoder/TextDecoder', /TextEncoder|TextDecoder/ ],
+    [ 'IntersectionObserver', /IntersectionObserver/ ],
+    [ 'classList', /classList/ ],
+    [ 'fetch', /\bfetch\b/ ],
+    [ 'AbortController', /AbortController/ ],
+    [ 'ResizeObserver', /ResizeObserver/ ],
+    [ 'Proxy', /\bProxy\b/ ]
+] as const) {
+    assert.match(
+        legacyPolyfillSource,
+        pattern,
+        `Legacy polyfill chunk must include ${api} for Jellyfin’s oldest supported browsers.`
+    );
+}
+
 for (const source of lazyRegistrySources) {
     const chunk = manifest[source];
 
