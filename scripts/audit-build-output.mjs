@@ -46,6 +46,10 @@ export const PLAYER_LIBRARY_CONTRACTS = [
     }
 ];
 
+const LIBARCHIVE_PLAYER_SOURCE = 'src/plugins/comicsPlayer/plugin.js';
+const LIBARCHIVE_WORKER_SOURCE = 'node_modules/libarchive.js/dist/worker-bundle.js';
+const LIBARCHIVE_WORKER_TARGET = 'worker-bundle.js';
+
 const REQUIRED_MANIFEST_ICON_PREFIX = 'favicons/';
 // eslint-disable-next-line sonarjs/no-clear-text-protocols -- Synthetic URL used only for local path resolution.
 const HTML_BASE_URL = 'http://build-audit.invalid/';
@@ -228,6 +232,26 @@ export const getServiceWorkerErrors = serviceWorker => {
     }
     if (serviceWorker.importsSharedApplicationChunks) {
         errors.push('serviceworker.js depends on shared application/runtime chunks');
+    }
+    return errors;
+};
+
+export const getLibarchiveWorkerErrors = libarchiveWorker => {
+    const errors = [];
+    if (libarchiveWorker.bundledFallbackFiles.length) {
+        errors.push(
+            'libarchive.js fallback worker is bundled as '
+            + libarchiveWorker.bundledFallbackFiles.join(', ')
+        );
+    }
+    if (
+        libarchiveWorker.playerRequestedFiles.length !== 1
+        || libarchiveWorker.playerRequestedFiles[0] !== LIBARCHIVE_WORKER_TARGET
+    ) {
+        errors.push(
+            `${LIBARCHIVE_PLAYER_SOURCE} must request only `
+            + `libraries/${LIBARCHIVE_WORKER_TARGET}`
+        );
     }
     return errors;
 };
@@ -455,6 +479,30 @@ export const auditBuildOutput = async ({
         }
     }
 
+    const viteManifestPath = path.join(resolvedDistDirectory, '.vite/manifest.json');
+    const viteManifest = await pathExists(viteManifestPath) ?
+        await readJson(viteManifestPath, errors, 'dist/.vite/manifest.json') :
+        null;
+    const bundledFallbackFiles = viteManifest && typeof viteManifest === 'object' ?
+        Object.entries(viteManifest)
+            .filter(([ key, entry ]) => {
+                const sources = [ key, entry?.src ]
+                    .filter(value => typeof value === 'string')
+                    .map(value => value.replaceAll('\\', '/'));
+                return sources.some(source => source.endsWith(LIBARCHIVE_WORKER_SOURCE));
+            })
+            .map(([, entry ]) => entry?.file)
+            .filter(file => typeof file === 'string')
+            .sort() :
+        [];
+    const libarchiveWorker = {
+        bundledFallbackFiles,
+        copiedPath: `libraries/${LIBARCHIVE_WORKER_TARGET}`,
+        playerRequestedFiles: playerLibraryReferences[LIBARCHIVE_PLAYER_SOURCE] || [],
+        viteManifestChecked: viteManifest !== null
+    };
+    errors.push(...getLibarchiveWorkerErrors(libarchiveWorker));
+
     let serviceWorker = {
         directImports: [],
         importsSharedApplicationChunks: false,
@@ -497,6 +545,7 @@ export const auditBuildOutput = async ({
             icons: manifestIcons
         },
         libraries: {
+            libarchiveWorker,
             playerReferences: playerLibraryReferences
         },
         serviceWorker,

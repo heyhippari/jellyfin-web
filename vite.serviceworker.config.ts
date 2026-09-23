@@ -1,7 +1,13 @@
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { defineConfig, type OutputBundle, type Plugin } from 'vite';
 
+import { classicScriptTransformPlugin } from './vite.classic-script';
 import { repositoryRoot } from './vite.shared';
+
+const packageJson = JSON.parse(
+    readFileSync(path.resolve(repositoryRoot, 'package.json'), 'utf8')
+);
 
 const verifySelfContainedServiceWorker = (): Plugin => ({
     name: 'jellyfin-verify-self-contained-service-worker',
@@ -22,7 +28,14 @@ const verifySelfContainedServiceWorker = (): Plugin => ({
 export default defineConfig({
     root: path.resolve(repositoryRoot, 'src'),
     base: './',
-    plugins: [verifySelfContainedServiceWorker()],
+    plugins: [
+        classicScriptTransformPlugin({
+            name: 'jellyfin-service-worker-es5',
+            targets: packageJson.browserslist,
+            test: chunk => chunk.fileName === 'serviceworker.js'
+        }),
+        verifySelfContainedServiceWorker()
+    ],
     build: {
         outDir: path.resolve(repositoryRoot, 'dist'),
         emptyOutDir: false,
