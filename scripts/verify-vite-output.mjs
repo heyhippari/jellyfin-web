@@ -86,7 +86,7 @@ for (const [ api, pattern ] of [
     [ 'AbortController', /AbortController/ ],
     [ 'ResizeObserver', /ResizeObserver/ ],
     [ 'Proxy', /\bProxy\b/ ]
-] as const) {
+]) {
     assert.match(
         legacyPolyfillSource,
         pattern,

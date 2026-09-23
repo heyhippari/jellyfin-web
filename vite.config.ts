@@ -8,7 +8,7 @@ import { resolve } from 'node:path';
 import { defineConfig, type Plugin } from 'vite';
 
 import { assertSupportedViteVersions } from './scripts/vite-version-guard.mjs';
-import { classicScriptTransformPlugin } from './vite.classic-script';
+import { classicScriptTransformPlugin, legacyPolyfillEs5Plugin } from './vite.classic-script';
 import { staticCopyPlugin } from './vite.copy';
 import { libarchiveWorkerPlugin } from './vite.libarchive';
 import { createTsconfigPathsPlugin, repositoryRoot } from './vite.shared';
@@ -78,7 +78,8 @@ export default defineConfig(({ command, isPreview, mode }) => ({
                 'core-js/proposals/global-this'
             ],
             modernPolyfills: false
-        })
+        }),
+        legacyPolyfillEs5Plugin(packageJson.browserslist)
     ],
     build: {
         outDir: resolve(repositoryRoot, 'dist'),
