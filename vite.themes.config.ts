@@ -42,7 +42,7 @@ const removeVerifiedThemeStubs = (): Plugin => ({
     }
 });
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
     root: sourceRoot,
     base: './',
     plugins: [removeVerifiedThemeStubs()],
@@ -51,6 +51,8 @@ export default defineConfig({
         emptyOutDir: false,
         copyPublicDir: false,
         cssCodeSplit: true,
+        minify: mode === 'production',
+        sourcemap: mode !== 'production',
         rollupOptions: {
             input: themeInputs,
             output: {
@@ -70,4 +72,4 @@ export default defineConfig({
             }
         }
     }
-});
+}));

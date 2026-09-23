@@ -54,8 +54,27 @@ You may be asked to update your Pull Request to target a release branch as part 
 * [React Router](https://reactrouter.com/) &mdash; Routing library
 * [TanStack Query](https://tanstack.com/query/latest/docs/framework/react/overview) &mdash; State management library for server data
 * [MUI](https://mui.com/material-ui/getting-started/) components (in Dashboard and Modern layouts) &mdash; UI component library
-* [Webpack](https://webpack.js.org/concepts/) &mdash; Bundler / build tooling
+* [Vite](https://vite.dev/guide/) &mdash; Bundler / build tooling
 * [Vitest](https://vitest.dev/api/) &mdash; Test library
+
+### Building and previewing
+
+Use Vite for local development and builds:
+
+```sh
+npm run serve
+npm run build:development
+npm run build:production
+```
+
+`npm run preview` serves the production build. To verify the legacy
+`nomodule` application and polyfill graph from an older browser or TV device,
+run `npm run preview -- --host 0.0.0.0` and open the displayed network URL on
+that device. Do not use the development server for this compatibility check.
+
+`npm run build:es-check` rebuilds the production output and checks only the
+manifest-selected legacy application/polyfill chunks plus Jellyfin-transformed
+classic workers. The command intentionally does not parse the modern ESM graph.
 
 #### Legacy Stack
 
