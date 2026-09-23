@@ -1,5 +1,4 @@
-// Import legacy browser polyfills
-import 'lib/legacy';
+import { loadMissingBrowserPolyfills } from 'lib/legacy';
 
 import React from 'react';
 import { createRoot } from 'react-dom/client';
@@ -50,6 +49,9 @@ import './styles/detailtable.scss';
 import './styles/librarybrowser.scss';
 
 async function init() {
+    // Conditional imports must finish before any application initialization can
+    // use the DOM and networking APIs they provide.
+    await loadMissingBrowserPolyfills();
     // Log current version to console to help out with issue triage and debugging
     console.info(
         `[${__PACKAGE_JSON_NAME__}]

@@ -67,6 +67,7 @@ const DEFAULT_LOCALE = 'en-US';
 
 // Keep this registry aligned with LOCALE_MAP. Explicit package imports let Vite
 // resolve and convert date-fns' CommonJS locale modules before emitting chunks.
+/* eslint-disable @typescript-eslint/naming-convention -- BCP 47 tags are map keys. */
 const LOCALE_IMPORTERS: Record<string, () => Promise<{ default: Locale }>> = {
     af: () => import('date-fns/locale/af/index.js'),
     'ar-DZ': () => import('date-fns/locale/ar-DZ/index.js'),
@@ -123,6 +124,7 @@ const LOCALE_IMPORTERS: Record<string, () => Promise<{ default: Locale }>> = {
     'zh-HK': () => import('date-fns/locale/zh-HK/index.js'),
     'zh-TW': () => import('date-fns/locale/zh-TW/index.js')
 };
+/* eslint-enable @typescript-eslint/naming-convention */
 
 let localeString = DEFAULT_LOCALE;
 let locale = enUS;
