@@ -33,4 +33,42 @@ assert.doesNotMatch(
 );
 assert.equal(manifest['index.html']?.isEntry, true, 'The Vite manifest must identify index.html as an entry.');
 
-console.info('Verified Vite modern and conditional legacy HTML graphs.');
+const lazyRegistrySources = [
+    'apps/dashboard/routes/activity/index.tsx',
+    'apps/modern/routes/home.tsx',
+    'apps/legacy/routes/search.tsx',
+    'apps/dashboard/controllers/livetvtuner.js',
+    'apps/dashboard/controllers/livetvtuner.html?raw',
+    'apps/wizard/controllers/start/index.js',
+    'apps/wizard/controllers/start/index.html?raw',
+    'apps/legacy/controllers/list.js',
+    'apps/legacy/controllers/list.html?raw',
+    'plugins/htmlVideoPlayer/plugin.js',
+    'strings/en-us.json',
+    'apps/legacy/controllers/favorites.js'
+];
+
+const initialGraph = new Set();
+const pendingInitialImports = [ 'index.html' ];
+
+while (pendingInitialImports.length > 0) {
+    const source = pendingInitialImports.pop();
+    if (!source || initialGraph.has(source)) continue;
+
+    initialGraph.add(source);
+    pendingInitialImports.push(...(manifest[source]?.imports ?? []));
+}
+
+for (const source of lazyRegistrySources) {
+    const chunk = manifest[source];
+
+    assert.ok(chunk, `The Vite manifest must contain the lazy registry module ${source}.`);
+    assert.equal(chunk.isDynamicEntry, true, `${source} must remain a dynamic entry.`);
+    assert.equal(
+        initialGraph.has(source),
+        false,
+        `${source} must not be collapsed into the initial static graph.`
+    );
+}
+
+console.info(`Verified Vite modern and conditional legacy HTML graphs, including ${lazyRegistrySources.length} representative lazy registry chunks.`);

@@ -5,7 +5,7 @@ import ConnectionRequired from 'components/ConnectionRequired';
 import { ASYNC_ADMIN_ROUTES } from './_asyncRoutes';
 import { toAsyncPageRoute } from 'components/router/AsyncRoute';
 import { toViewManagerPageRoute } from 'components/router/LegacyRoute';
-import { LEGACY_ADMIN_ROUTES } from './_legacyRoutes';
+import { LEGACY_ADMIN_ROUTES, METADATA_MANAGER_ROUTE } from './_legacyRoutes';
 import ServerContentPage from 'components/ServerContentPage';
 import ErrorBoundary from 'components/router/ErrorBoundary';
 
@@ -36,13 +36,7 @@ export const DASHBOARD_APP_ROUTES: RouteObject[] = [
                     },
 
                     /* NOTE: The metadata editor might deserve a dedicated app in the future */
-                    toViewManagerPageRoute({
-                        path: DASHBOARD_APP_PATHS.MetadataManager,
-                        pageProps: {
-                            controller: 'edititemmetadata',
-                            view: 'edititemmetadata.html'
-                        }
-                    }),
+                    toViewManagerPageRoute(METADATA_MANAGER_ROUTE),
 
                     {
                         path: DASHBOARD_APP_PATHS.PluginConfig,

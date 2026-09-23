@@ -6,6 +6,7 @@ import globalize from 'lib/globalize';
 import type { RestoreViewFailResponse } from 'types/viewManager';
 
 import viewManager from './viewManager';
+import { viewRegistries } from './viewRegistry';
 import { AppType } from 'constants/appType';
 
 export interface ViewManagerPageProps {
@@ -38,26 +39,21 @@ const importController = (
     controller: string,
     view: string
 ) => {
+    let registries = viewRegistries.legacy;
+
     switch (appType) {
         case AppType.Dashboard:
-            return Promise.all([
-                import(/* webpackChunkName: "[request]" */ `../../apps/dashboard/controllers/${controller}`),
-                import(/* webpackChunkName: "[request]" */ `../../apps/dashboard/controllers/${view}`)
-                    .then(({ default: html }) => globalize.translateHtml(html))
-            ]);
+            registries = viewRegistries.dashboard;
+            break;
         case AppType.Wizard:
-            return Promise.all([
-                import(/* webpackChunkName: "[request]" */ `../../apps/wizard/controllers/${controller}`),
-                import(/* webpackChunkName: "[request]" */ `../../apps/wizard/controllers/${view}`)
-                    .then(({ default: html }) => globalize.translateHtml(html))
-            ]);
-        default:
-            return Promise.all([
-                import(/* webpackChunkName: "[request]" */ `../../apps/legacy/controllers/${controller}`),
-                import(/* webpackChunkName: "[request]" */ `../../apps/legacy/controllers/${view}`)
-                    .then(({ default: html }) => globalize.translateHtml(html))
-            ]);
+            registries = viewRegistries.wizard;
+            break;
     }
+
+    return Promise.all([
+        registries.controllers.load(controller),
+        registries.views.load(view).then(html => globalize.translateHtml(html))
+    ]);
 };
 
 const loadView = async (

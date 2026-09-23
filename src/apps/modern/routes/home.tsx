@@ -8,24 +8,14 @@ import layoutManager from '../../../components/layoutManager';
 import Page from '../../../components/Page';
 import { EventType } from 'constants/eventType';
 import Events from 'utils/events';
+import {
+    type HomeTabController,
+    homeTabControllerRegistry
+} from 'apps/legacy/controllers/homeTabRegistry';
 
 import '../../../elements/emby-tabs/emby-tabs';
 import '../../../elements/emby-button/emby-button';
 import '../../../elements/emby-scroller/emby-scroller';
-
-type OnResumeOptions = {
-    autoFocus?: boolean;
-    refresh?: boolean
-};
-
-type ControllerProps = {
-    onResume: (
-        options: OnResumeOptions
-    ) => void;
-    refreshed: boolean;
-    onPause: () => void;
-    destroy: () => void;
-};
 
 const Home = () => {
     const [ searchParams ] = useSearchParams();
@@ -33,15 +23,15 @@ const Home = () => {
 
     const libraryMenu = useMemo(async () => ((await import('../../../scripts/libraryMenu')).default), []);
     const mainTabsManager = useMemo(() => import('../../../components/maintabsmanager'), []);
-    const tabController = useRef<ControllerProps | null>();
-    const tabControllers = useMemo<ControllerProps[]>(() => [], []);
+    const tabController = useRef<HomeTabController | null>();
+    const tabControllers = useMemo<HomeTabController[]>(() => [], []);
 
     const documentRef = useRef<Document>(document);
     const element = useRef<HTMLDivElement>(null);
 
-    const setTitle = async () => {
+    const setTitle = useCallback(async () => {
         (await libraryMenu).setTitle(null);
-    };
+    }, [ libraryMenu ]);
 
     const getTabs = () => {
         return [{
@@ -71,7 +61,7 @@ const Home = () => {
                 depends = 'favorites';
         }
 
-        return import(/* webpackChunkName: "[request]" */ `../../../apps/legacy/controllers/${depends}`).then(({ default: ControllerFactory }) => {
+        return homeTabControllerRegistry.load(depends).then(({ default: ControllerFactory }) => {
             let controller = tabControllers[index];
 
             if (!controller) {
@@ -128,7 +118,7 @@ const Home = () => {
             currentTabController.onResume({});
         }
         (documentRef.current.querySelector('.skinHeader') as HTMLDivElement).classList.add('noHomeButtonHeader');
-    }, [ initialTabIndex, mainTabsManager ]);
+    }, [ initialTabIndex, mainTabsManager, setTitle ]);
 
     const onPause = useCallback(() => {
         const currentTabController = tabController.current;
