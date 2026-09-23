@@ -25,7 +25,7 @@ const verifySelfContainedServiceWorker = (): Plugin => ({
     }
 });
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
     root: path.resolve(repositoryRoot, 'src'),
     base: './',
     plugins: [
@@ -40,6 +40,8 @@ export default defineConfig({
         outDir: path.resolve(repositoryRoot, 'dist'),
         emptyOutDir: false,
         copyPublicDir: false,
+        minify: mode === 'production',
+        sourcemap: mode !== 'production',
         rollupOptions: {
             input: path.resolve(repositoryRoot, 'src/serviceworker.js'),
             output: {
@@ -49,4 +51,4 @@ export default defineConfig({
             }
         }
     }
-});
+}));

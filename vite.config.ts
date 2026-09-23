@@ -5,7 +5,10 @@ import react from '@vitejs/plugin-react';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
+// eslint-disable-next-line import/no-unresolved
+import { visualizer } from 'rollup-plugin-visualizer';
 import { defineConfig, type Plugin } from 'vite';
+import type { OutputBundle, OutputOptions, PluginContext } from 'rollup';
 
 import { assertSupportedViteVersions } from './scripts/vite-version-guard.mjs';
 import { classicScriptTransformPlugin, legacyPolyfillEs5Plugin } from './vite.classic-script';
@@ -36,6 +39,30 @@ const versionGuard = (): Plugin => ({
     apply: 'build',
     config() {
         assertSupportedViteVersions();
+    }
+});
+
+const visualizeOutputPlugin = (): Plugin => ({
+    name: 'jellyfin-vite-visualizer',
+    async generateBundle(this: PluginContext, output: OutputOptions, bundle: OutputBundle) {
+        // A Vite legacy build invokes Rollup once per output graph. Create a
+        // fresh visualizer for each invocation because the package caches the
+        // options it gets on its first call.
+        const visualizerPlugin = visualizer({
+            filename: resolve(
+                repositoryRoot,
+                `build-reports/vite-bundle-${output.format === 'system' ? 'legacy' : 'modern'}.html`
+            ),
+            gzipSize: true,
+            brotliSize: true,
+            open: false,
+            template: 'treemap',
+            title: `Jellyfin Web Vite ${output.format === 'system' ? 'legacy' : 'modern'} bundle graph`
+        });
+        if (typeof visualizerPlugin.generateBundle !== 'function') {
+            throw new Error('rollup-plugin-visualizer must provide a generateBundle hook.');
+        }
+        await visualizerPlugin.generateBundle.call(this, output, bundle);
     }
 });
 
@@ -79,11 +106,13 @@ export default defineConfig(({ command, isPreview, mode }) => ({
             ],
             modernPolyfills: false
         }),
-        legacyPolyfillEs5Plugin(packageJson.browserslist)
+        legacyPolyfillEs5Plugin(packageJson.browserslist),
+        ...(process.env.VITE_VISUALIZE === 'true' ? [visualizeOutputPlugin()] : [])
     ],
     build: {
         outDir: resolve(repositoryRoot, 'dist'),
         emptyOutDir: true,
+        minify: mode === 'production',
         sourcemap: mode !== 'production',
         manifest: true,
         rollupOptions: {

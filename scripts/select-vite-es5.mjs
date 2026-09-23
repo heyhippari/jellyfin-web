@@ -162,10 +162,11 @@ if (isMainModule) {
     const distDirectory = path.resolve('dist');
     const selection = await selectViteEs5Files({ distDirectory });
     console.log(
-        `Vite ES5 selection: ${selection.applicationFiles.length} legacy application chunks, `
-        + `1 legacy polyfill chunk, ${selection.classicWorkerFiles.length} Jellyfin classic workers.`
+        `Vite legacy ES5 check: ${selection.files.length} generated files `
+        + `(${selection.applicationFiles.length} legacy application chunks, 1 legacy polyfill chunk, `
+        + `${selection.classicWorkerFiles.length} Jellyfin classic workers).`
     );
-    for (const file of selection.files) console.log(`  ${file}`);
+    for (const file of selection.files) console.log(`  checking ${file}`);
     console.log('Explicit third-party script exclusions:');
     for (const exclusion of selection.thirdPartyExclusions) console.log(`  ${exclusion}`);
     await runEsCheck({ distDirectory, files: selection.files });
