@@ -2,8 +2,10 @@ import * as lazyLoader from '../lazyLoader/lazyLoaderIntersectionObserver';
 import * as userSettings from '../../scripts/settings/userSettings';
 import './style.scss';
 
-// The default Worker type is classic, which is required by the legacy browser contract.
-const worker = new Worker(new URL('./blurhash.worker.ts', import.meta.url));
+// Vite serves worker dependencies as ES modules in development. The production
+// worker stays an IIFE so browsers without module-worker support can still
+// execute it as a classic worker.
+const worker = new Worker(new URL('./blurhash.worker.ts', import.meta.url), { type: 'module' });
 const targetDic = {};
 worker.addEventListener(
     'message',
