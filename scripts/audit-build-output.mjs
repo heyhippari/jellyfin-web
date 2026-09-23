@@ -204,24 +204,9 @@ const extractServiceWorkerDependencies = source => {
         while ((match = pattern.exec(source))) directImports.add(match[1]);
     }
 
-    const webpackSharedChunkIds = new Set();
-    const webpackDependencyPattern = /\.O\(\d+,\[([\d,\s]+)\]/g;
-    let dependencyMatch;
-    while ((dependencyMatch = webpackDependencyPattern.exec(source))) {
-        for (const id of dependencyMatch[1].split(',')) {
-            const normalizedId = id.trim();
-            if (normalizedId) webpackSharedChunkIds.add(normalizedId);
-        }
-    }
-
-    const usesWebpackRuntime = /\bwebpackChunk\b/.test(source);
-
     return {
         directImports: [ ...directImports ].sort(),
         importsSharedApplicationChunks: directImports.size > 0
-            || (usesWebpackRuntime && webpackSharedChunkIds.size > 0),
-        usesWebpackRuntime,
-        webpackSharedChunkIds: [ ...webpackSharedChunkIds ].sort()
     };
 };
 
@@ -506,9 +491,7 @@ export const auditBuildOutput = async ({
     let serviceWorker = {
         directImports: [],
         importsSharedApplicationChunks: false,
-        pageScriptReference: false,
-        usesWebpackRuntime: false,
-        webpackSharedChunkIds: []
+        pageScriptReference: false
     };
     const serviceWorkerPath = path.join(resolvedDistDirectory, 'serviceworker.js');
     if (await pathExists(serviceWorkerPath)) {

@@ -60,11 +60,13 @@ describe('getCommitSha', () => {
 
 describe('getBuildConstants', () => {
     it('uses the development-server build name and parses enabled system fonts', () => {
-        const options = createOptions({
-            JELLYFIN_VERSION: 'packaged-version',
-            USE_SYSTEM_FONTS: '1',
-            WEBPACK_SERVE: '1'
-        });
+        const options = {
+            ...createOptions({
+                JELLYFIN_VERSION: 'packaged-version',
+                USE_SYSTEM_FONTS: '1'
+            }),
+            devServer: true
+        };
 
         expect(getBuildConstants(options)).toEqual({
             commitSha: 'abc123',
@@ -79,8 +81,7 @@ describe('getBuildConstants', () => {
     it('uses JELLYFIN_VERSION for a packaged build', () => {
         const options = createOptions({
             JELLYFIN_VERSION: '10.11.0',
-            USE_SYSTEM_FONTS: '0',
-            WEBPACK_SERVE: '0'
+            USE_SYSTEM_FONTS: '0'
         });
 
         expect(getBuildConstants(options)).toMatchObject({
