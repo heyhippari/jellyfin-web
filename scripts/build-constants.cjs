@@ -20,7 +20,7 @@ const getBuildConstants = ({
     logger,
     packageJson
 }) => {
-    const isDevServer = devServer ?? parseEnvironmentBoolean(environment.WEBPACK_SERVE);
+    const isDevServer = devServer ?? false;
 
     return {
         commitSha: getCommitSha({ executeGit, logger }),

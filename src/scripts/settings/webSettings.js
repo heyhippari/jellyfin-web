@@ -34,7 +34,7 @@ export function getIncludeCorsCredentials() {
 }
 
 export function getMultiServer() {
-    // Enable multi-server support when served by webpack
+    // Enable multi-server support in the development server.
     if (__DEV_SERVER__) {
         return Promise.resolve(true);
     }
