@@ -10,6 +10,8 @@ import { EventType } from 'constants/eventType';
 import Events, { type Event } from 'utils/events';
 import Typography from '@mui/material/Typography';
 
+import { VIDEO_PAGE_PROPS } from './view';
+
 /**
  * Video player page component that renders mui controls for the top controls and the legacy view for everything else.
  */
@@ -77,14 +79,7 @@ const VideoPage: FC = () => {
                 </Box>
             </Fade>
 
-            <ViewManagerPage
-                controller='playback/video/index'
-                view='playback/video/index.html'
-                type='video-osd'
-                isFullscreen
-                isNowPlayingBarEnabled={false}
-                isThemeMediaSupported
-            />
+            <ViewManagerPage {...VIDEO_PAGE_PROPS} />
         </>
     );
 };

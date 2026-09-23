@@ -5,6 +5,8 @@ import { currentSettings as userSettings } from 'scripts/settings/userSettings';
 import Events from 'utils/events';
 import { updateLocale } from 'utils/dateFnsLocale';
 
+import { translationRegistry } from './translationRegistry';
+
 const Direction = {
     rtl: 'rtl',
     ltr: 'ltr'
@@ -214,7 +216,7 @@ function loadTranslation(translations, lang) {
 
         const url = filtered[0].path;
 
-        import(/* webpackChunkName: "[request]" */ `../../strings/${url}`).then((fileContent) => {
+        translationRegistry.load(url).then((fileContent) => {
             resolve(fileContent);
         }).catch(() => {
             resolve({});

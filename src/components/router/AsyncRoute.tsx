@@ -2,6 +2,12 @@ import type { RouteObject } from 'react-router-dom';
 
 import { AppType } from 'constants/appType';
 
+import {
+    dashboardRouteRegistry,
+    legacyRouteRegistry,
+    modernRouteRegistry
+} from './routeRegistry';
+
 export interface AsyncRoute {
     /** The URL path for this route. */
     path: string
@@ -14,14 +20,20 @@ export interface AsyncRoute {
     type?: AppType
 }
 
+type LazyRouteModule = Awaited<
+    ReturnType<NonNullable<RouteObject['lazy']>>
+>;
+
 const importRoute = (page: string, type: AppType) => {
     switch (type) {
         case AppType.Dashboard:
-            return import(/* webpackChunkName: "[request]" */ `../../apps/dashboard/routes/${page}`);
+            return dashboardRouteRegistry.load(page);
         case AppType.Modern:
-            return import(/* webpackChunkName: "[request]" */ `../../apps/modern/routes/${page}`);
+            return modernRouteRegistry.load(page);
         case AppType.Legacy:
-            return import(/* webpackChunkName: "[request]" */ `../../apps/legacy/routes/${page}`);
+            return legacyRouteRegistry.load(page);
+        default:
+            throw new Error(`Unsupported async route app type: "${type}"`);
     }
 };
 
@@ -42,7 +54,7 @@ export const toAsyncPageRoute = ({
             return {
                 Component,
                 ...route
-            };
+            } as LazyRouteModule;
         }
     };
 };

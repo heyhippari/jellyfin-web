@@ -18,3 +18,11 @@ export const LEGACY_ADMIN_ROUTES: LegacyRoute[] = [
         }
     }
 ];
+
+export const METADATA_MANAGER_ROUTE: LegacyRoute = {
+    path: 'metadata',
+    pageProps: {
+        controller: 'edititemmetadata',
+        view: 'edititemmetadata.html'
+    }
+};

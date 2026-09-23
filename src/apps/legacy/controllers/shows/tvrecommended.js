@@ -5,6 +5,7 @@ import layoutManager from 'components/layoutManager';
 import loading from 'components/loading/loading';
 import * as mainTabsManager from 'components/maintabsmanager';
 import { playbackManager } from 'components/playback/playbackmanager';
+import { viewRegistries } from 'components/viewManager/viewRegistry';
 import dom from 'utils/dom';
 import globalize from 'lib/globalize';
 import inputManager from 'scripts/inputManager';
@@ -268,7 +269,7 @@ export default function (view, params) {
                 break;
         }
 
-        import(`../shows/${depends}`).then(({ default: ControllerFactory }) => {
+        viewRegistries.legacy.controllers.load(`shows/${depends}`).then(({ default: ControllerFactory }) => {
             let tabContent;
 
             if (index === 1) {
@@ -388,4 +389,3 @@ export default function (view, params) {
         });
     });
 }
-

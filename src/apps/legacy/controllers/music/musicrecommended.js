@@ -4,6 +4,7 @@ import imageLoader from 'components/images/imageLoader';
 import layoutManager from 'components/layoutManager';
 import loading from 'components/loading/loading';
 import * as mainTabsManager from 'components/maintabsmanager';
+import { viewRegistries } from 'components/viewManager/viewRegistry';
 import browser from 'scripts/browser';
 import dom from 'utils/dom';
 import globalize from 'lib/globalize';
@@ -296,7 +297,7 @@ export default function (view, params) {
                 break;
         }
 
-        import(`../music/${depends}`).then(({ default: ControllerFactory }) => {
+        viewRegistries.legacy.controllers.load(`music/${depends}`).then(({ default: ControllerFactory }) => {
             let tabContent;
 
             if (index == 1) {

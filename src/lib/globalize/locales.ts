@@ -65,9 +65,14 @@ const languages = [
     'zh-tw'
 ];
 
+const translationPaths: Record<string, string> = {};
+translationPaths.bn_bd = 'bn_BD.json';
+translationPaths.es_do = 'es_DO.json';
+translationPaths.ur_pk = 'ur_PK.json';
+
 const locales = languages.map(lang => ({
     lang,
-    path: `${lang}.json`
+    path: translationPaths[lang] ?? `${lang}.json`
 }));
 
 export default locales;
