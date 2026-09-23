@@ -1,6 +1,6 @@
 import { transformAsync } from '@babel/core';
 import presetEnv from '@babel/preset-env';
-import type { OutputChunk } from 'rollup';
+import type { OutputBundle, OutputChunk } from 'rollup';
 import type { Plugin } from 'vite';
 
 interface ClassicScriptTransformOptions {
@@ -8,6 +8,8 @@ interface ClassicScriptTransformOptions {
     targets: string[]
     test: (chunk: OutputChunk) => boolean
 }
+
+const LEGACY_POLYFILL_FILE = /(?:^|\/)polyfills-legacy-[^/]+\.js$/;
 
 export const transformClassicScript = async (
     code: string,
@@ -74,3 +76,43 @@ export const classicScriptTransformPlugin = ({
         }
     };
 };
+
+export const transformLegacyPolyfillBundle = async (
+    bundle: OutputBundle,
+    targets: string[]
+) => {
+    const polyfillChunks = Object.values(bundle).filter((output): output is OutputChunk => (
+        output.type === 'chunk' && LEGACY_POLYFILL_FILE.test(output.fileName)
+    ));
+
+    if (polyfillChunks.length !== 1) {
+        throw new Error(
+            `Expected exactly one Vite legacy polyfill chunk; found ${polyfillChunks.length}.`
+        );
+    }
+
+    const polyfillChunk = polyfillChunks[0];
+    polyfillChunk.code = await transformClassicScript(
+        polyfillChunk.code,
+        polyfillChunk.fileName,
+        targets
+    );
+};
+
+/**
+ * Vite's legacy plugin generates its polyfill entry through a separate build,
+ * bypassing the Babel pass it applies to legacy application chunks. Transform
+ * that one generated classic script after plugin-legacy adds it to the bundle.
+ * https://github.com/vitejs/vite/issues/10284
+ */
+export const legacyPolyfillEs5Plugin = (targets: string[]): Plugin => ({
+    name: 'jellyfin-legacy-polyfill-es5',
+    apply: 'build',
+    generateBundle: {
+        order: 'post',
+        async handler(outputOptions, bundle) {
+            if (outputOptions.format !== 'system') return;
+            await transformLegacyPolyfillBundle(bundle, targets);
+        }
+    }
+});
