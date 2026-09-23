@@ -115,6 +115,8 @@ export default defineConfig(({ command, isPreview, mode }) => ({
         minify: mode === 'production',
         sourcemap: mode !== 'production',
         manifest: true,
+        // Deliberately use Rollup's default chunking. Any future manualChunks
+        // rule needs a measured improvement recorded with the graph budget.
         rollupOptions: {
             output: {
                 entryFileNames: 'assets/[name]-[hash].js',
