@@ -6,8 +6,6 @@ import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
 import {
-    COPIED_ROOT_FILES,
-    FAVICON_FILES,
     LIBRARY_COPIES
 } from './static-build-contract.mjs';
 
@@ -70,24 +68,6 @@ const pathExists = async filePath => {
     } catch {
         return false;
     }
-};
-
-const listFiles = async directory => {
-    const entries = await readdir(directory, { withFileTypes: true });
-    const files = [];
-
-    for (const entry of entries) {
-        const entryPath = path.join(directory, entry.name);
-        if (entry.isDirectory()) {
-            for (const nestedFile of await listFiles(entryPath)) {
-                files.push(path.join(entry.name, nestedFile));
-            }
-        } else if (entry.isFile()) {
-            files.push(entry.name);
-        }
-    }
-
-    return files.sort();
 };
 
 const parseAttributes = source => {
@@ -221,6 +201,13 @@ export const getServiceWorkerErrors = serviceWorker => {
     return errors;
 };
 
+export const getThemeContractErrors = ({ configuredIds, sourceIds }) => {
+    const sourceIdSet = new Set(sourceIds);
+    return configuredIds
+        .filter(themeId => !sourceIdSet.has(themeId))
+        .map(themeId => `configured theme ${themeId} has no src/themes/${themeId}/theme.scss source`);
+};
+
 export const getLibarchiveWorkerErrors = libarchiveWorker => {
     const errors = [];
     if (libarchiveWorker.bundledFallbackFiles.length) {
@@ -268,19 +255,6 @@ const checkDirectory = async (directory, errors, label) => {
     }
 };
 
-const checkCopiedFile = async (source, target, errors, label) => {
-    await checkFile(target, errors, label);
-    try {
-        const [ sourceContents, targetContents ] = await Promise.all([
-            readFile(source),
-            readFile(target)
-        ]);
-        if (!sourceContents.equals(targetContents)) errors.push(`${label} differs from its source`);
-    } catch {
-        // checkFile reports a missing target; source failures are reported by the copy build itself.
-    }
-};
-
 /* eslint-disable sonarjs/cognitive-complexity -- Linear aggregation of independent contract checks. */
 export const auditBuildOutput = async ({
     projectRoot = process.cwd(),
@@ -308,54 +282,12 @@ export const auditBuildOutput = async ({
         );
     }
 
-    for (const fileName of COPIED_ROOT_FILES) {
-        await checkCopiedFile(
-            path.join(projectRoot, 'src', fileName),
-            path.join(resolvedDistDirectory, fileName),
+    for (const fileName of LIBRARY_FILES) {
+        await checkFile(
+            path.join(resolvedDistDirectory, 'libraries', fileName),
             errors,
-            `copied root file ${fileName}`
+            `stable library libraries/${fileName}`
         );
-    }
-
-    const sourceAssetsDirectory = path.join(projectRoot, 'src/assets');
-    const sourceAssetFiles = await pathExists(sourceAssetsDirectory) ?
-        await listFiles(sourceAssetsDirectory) :
-        [];
-    for (const relativePath of sourceAssetFiles) {
-        await checkCopiedFile(
-            path.join(sourceAssetsDirectory, relativePath),
-            path.join(resolvedDistDirectory, 'assets', relativePath),
-            errors,
-            `copied asset assets/${relativePath}`
-        );
-    }
-
-    for (const { source, target } of LIBRARY_COPIES) {
-        await checkCopiedFile(
-            path.join(projectRoot, 'node_modules', source),
-            path.join(resolvedDistDirectory, 'libraries', target),
-            errors,
-            `copied library libraries/${target}`
-        );
-    }
-
-    const faviconSourceDirectory = path.join(
-        projectRoot,
-        'node_modules/@jellyfin/ux-web/favicons'
-    );
-    let faviconFiles = [];
-    if (await pathExists(faviconSourceDirectory)) {
-        faviconFiles = [ ...FAVICON_FILES ].sort();
-        for (const faviconFile of faviconFiles) {
-            await checkCopiedFile(
-                path.join(faviconSourceDirectory, faviconFile),
-                path.join(resolvedDistDirectory, 'favicons', faviconFile),
-                errors,
-                `copied favicon favicons/${faviconFile}`
-            );
-        }
-    } else {
-        errors.push('favicon source node_modules/@jellyfin/ux-web/favicons is missing');
     }
 
     const indexPath = path.join(resolvedDistDirectory, 'index.html');
@@ -386,7 +318,7 @@ export const auditBuildOutput = async ({
         errors,
         'src/config.json'
     );
-    const themeIds = [];
+    const configuredThemeIds = [];
     if (!Array.isArray(sourceConfig?.themes)) {
         errors.push('src/config.json does not contain a themes array');
     } else {
@@ -402,13 +334,39 @@ export const auditBuildOutput = async ({
                 continue;
             }
             seenThemeIds.add(themeId);
-            themeIds.push(themeId);
-            await checkFile(
-                path.join(resolvedDistDirectory, 'themes', themeId, 'theme.css'),
-                errors,
-                `configured theme themes/${themeId}/theme.css`
-            );
+            configuredThemeIds.push(themeId);
         }
+    }
+
+    const themeSourceDirectory = path.join(projectRoot, 'src/themes');
+    let themeSourceIds = [];
+    try {
+        const themeDirectoryEntries = await readdir(themeSourceDirectory, { withFileTypes: true });
+        const themeSourceCandidates = themeDirectoryEntries
+            .filter(entry => entry.isDirectory() && /^[A-Za-z0-9_-]+$/.test(entry.name))
+            .map(entry => entry.name)
+            .sort();
+        const themeSourceChecks = await Promise.all(themeSourceCandidates.map(async themeId => ({
+            exists: await pathExists(path.join(themeSourceDirectory, themeId, 'theme.scss')),
+            themeId
+        })));
+        themeSourceIds = themeSourceChecks
+            .filter(({ exists }) => exists)
+            .map(({ themeId }) => themeId);
+    } catch (error) {
+        errors.push(`cannot inspect theme sources: ${error.message}`);
+    }
+
+    errors.push(...getThemeContractErrors({
+        configuredIds: configuredThemeIds,
+        sourceIds: themeSourceIds
+    }));
+    for (const themeId of themeSourceIds) {
+        await checkFile(
+            path.join(resolvedDistDirectory, 'themes', themeId, 'theme.css'),
+            errors,
+            `source theme themes/${themeId}/theme.css`
+        );
     }
 
     const manifest = await readJson(
@@ -514,15 +472,14 @@ export const auditBuildOutput = async ({
         stableOutputs: {
             directories: STABLE_DIRECTORIES,
             rootFiles: STABLE_ROOT_FILES,
-            copiedAssetCount: sourceAssetFiles.length,
-            copiedFaviconFiles: faviconFiles,
             copiedLibraryFiles: LIBRARY_FILES
         },
         html: {
             references
         },
         themes: {
-            configuredIds: themeIds
+            configuredIds: configuredThemeIds,
+            sourceIds: themeSourceIds
         },
         manifest: {
             icons: manifestIcons
@@ -542,8 +499,7 @@ export const auditBuildOutput = async ({
 const printHumanReport = report => {
     console.log(`Build output audit: ${report.status.toUpperCase()}`);
     console.log(`HTML references checked: ${report.html.references.length}`);
-    console.log(`Configured themes checked: ${report.themes.configuredIds.length}`);
-    console.log(`Stable assets checked: ${report.stableOutputs.copiedAssetCount}`);
+    console.log(`Source themes checked: ${report.themes.sourceIds.length}`);
     console.log(`Service worker referenced by page: ${report.serviceWorker.pageScriptReference}`);
     console.log(`Service worker uses shared chunks: ${report.serviceWorker.importsSharedApplicationChunks}`);
 

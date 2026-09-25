@@ -17,12 +17,12 @@ function executeAction(action, data, serverId) {
 }
 
 self.addEventListener('notificationclick', function (event) {
-    const notification = event.notification;
+    var notification = event.notification;
     notification.close();
 
-    const data = notification.data;
-    const serverId = data.serverId;
-    const action = event.action;
+    var data = notification.data;
+    var serverId = data.serverId;
+    var action = event.action;
 
     if (!action) {
         clients.openWindow('/');
@@ -33,4 +33,6 @@ self.addEventListener('notificationclick', function (event) {
     event.waitUntil(executeAction(action, data, serverId));
 }, false);
 
-self.addEventListener('activate', () => self.clients.claim());
+self.addEventListener('activate', function () {
+    return self.clients.claim();
+});

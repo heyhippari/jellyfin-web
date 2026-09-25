@@ -1,13 +1,7 @@
-import { createReadStream } from 'node:fs';
-import {
-    copyFile,
-    cp,
-    mkdir,
-    realpath,
-    stat
-} from 'node:fs/promises';
+import { stat } from 'node:fs/promises';
 import path from 'node:path';
-import type { Plugin, ResolvedConfig } from 'vite';
+import { normalizePath, type ConfigEnv, type Plugin } from 'vite';
+import { viteStaticCopy, type Target } from 'vite-plugin-static-copy';
 
 import {
     COPIED_ROOT_FILES,
@@ -16,197 +10,93 @@ import {
 } from './scripts/static-build-contract.mjs';
 import { repositoryRoot } from './vite.shared';
 
-const CONTENT_TYPES = new Map([
-    [ '.ico', 'image/x-icon' ],
-    [ '.js', 'text/javascript; charset=utf-8' ],
-    [ '.json', 'application/json; charset=utf-8' ],
-    [ '.png', 'image/png' ],
-    [ '.svg', 'image/svg+xml' ],
-    [ '.txt', 'text/plain; charset=utf-8' ],
-    [ '.wasm', 'application/wasm' ],
-    [ '.woff2', 'font/woff2' ]
-]);
+const sourceRoot = path.resolve(repositoryRoot, 'src');
 
-interface StaticFile {
-    source: string
-    target: string
-}
-
-const assetsSource = path.resolve(repositoryRoot, 'src/assets');
-
-const staticFiles: StaticFile[] = [
-    ...COPIED_ROOT_FILES.map(fileName => ({
-        source: path.resolve(repositoryRoot, 'src', fileName),
-        target: fileName
-    })),
-    ...FAVICON_FILES.map(fileName => ({
-        source: path.resolve(repositoryRoot, 'node_modules/@jellyfin/ux-web/favicons', fileName),
-        target: `favicons/${fileName}`
-    })),
+const externalCopyTargets: Target[] = [
+    {
+        src: FAVICON_FILES.map(fileName => normalizePath(path.resolve(
+            repositoryRoot,
+            'node_modules/@jellyfin/ux-web/favicons',
+            fileName
+        ))),
+        dest: 'favicons',
+        rename: { stripBase: true }
+    },
     ...LIBRARY_COPIES.map(({ source, target }) => ({
-        source: path.resolve(repositoryRoot, 'node_modules', source),
-        target: `libraries/${target}`
+        src: normalizePath(path.resolve(repositoryRoot, 'node_modules', source)),
+        dest: 'libraries',
+        rename: {
+            name: target,
+            stripBase: true
+        }
     }))
 ];
 
-const staticFilesByUrl = new Map(
-    staticFiles.map(file => [ `/${file.target}`, file.source ])
+const buildCopyTargets: Target[] = [
+    {
+        src: 'assets',
+        dest: '.'
+    },
+    {
+        src: COPIED_ROOT_FILES,
+        dest: '.'
+    },
+    ...externalCopyTargets
+];
+
+export const getStaticCopyTargets = (command: ConfigEnv['command']) => (
+    command === 'build' ? buildCopyTargets : externalCopyTargets
 );
 
-const isPathInside = (parent: string, child: string) => {
-    const relativePath = path.relative(parent, child);
-    return relativePath === '' || (
-        !relativePath.startsWith(`..${path.sep}`)
-        && relativePath !== '..'
-        && !path.isAbsolute(relativePath)
-    );
-};
-
-const parseRequestPath = (requestUrl: string) => {
-    const rawPath = requestUrl.split(/[?#]/, 1)[0];
-    let pathname: string;
-    try {
-        pathname = decodeURIComponent(rawPath);
-    } catch {
-        return null;
-    }
-
-    if (
-        !pathname.startsWith('/')
-        || pathname.includes('\0')
-        || pathname.includes('\\')
-        || pathname.split('/').includes('..')
-    ) {
-        return null;
-    }
-
-    return pathname;
-};
-
-const resolveExistingFile = async (sourceRoot: string, candidate: string) => {
-    if (!isPathInside(sourceRoot, candidate)) return null;
-
-    try {
-        const [ resolvedRoot, resolvedFile, fileStats ] = await Promise.all([
-            realpath(sourceRoot),
-            realpath(candidate),
-            stat(candidate)
-        ]);
-        if (!fileStats.isFile() || !isPathInside(resolvedRoot, resolvedFile)) return null;
-        return resolvedFile;
-    } catch {
-        return null;
-    }
-};
-
-export const resolveStaticSource = async (requestUrl: string) => {
-    try {
-        // Vite appends this query when a source file belongs to the module graph.
-        // Let Vite transform JSON and asset imports instead of serving their raw bytes.
-        // eslint-disable-next-line sonarjs/no-clear-text-protocols -- Synthetic URL used only to parse a local request.
-        if (new URL(requestUrl, 'http://vite.invalid').searchParams.has('import')) return null;
-    } catch {
-        return null;
-    }
-
-    const pathname = parseRequestPath(requestUrl);
-    if (!pathname) return null;
-
-    const exactSource = staticFilesByUrl.get(pathname);
-    if (exactSource) return resolveExistingFile(path.dirname(exactSource), exactSource);
-
-    if (!pathname.startsWith('/assets/')) return null;
-    const relativePath = pathname.slice('/assets/'.length);
-    return resolveExistingFile(assetsSource, path.resolve(assetsSource, relativePath));
-};
-
 export const resolveThemeDevelopmentUrl = async (requestUrl: string) => {
-    const pathname = parseRequestPath(requestUrl);
-    const match = pathname?.match(/^\/themes\/([A-Za-z0-9_-]+)\/theme\.css$/);
+    let pathname: string;
+    let search: string;
+    try {
+        // eslint-disable-next-line sonarjs/no-clear-text-protocols -- Synthetic URL used only to parse a local request.
+        const url = new URL(requestUrl, 'http://vite.invalid');
+        pathname = decodeURIComponent(url.pathname);
+        search = url.search;
+    } catch {
+        return null;
+    }
+
+    const match = pathname.match(/^\/themes\/([A-Za-z0-9_-]+)\/theme\.css$/);
     if (!match) return null;
 
-    const source = path.resolve(repositoryRoot, 'src/themes', match[1], 'theme.scss');
-    const sourceRoot = path.resolve(repositoryRoot, 'src/themes');
-    if (!await resolveExistingFile(sourceRoot, source)) return null;
-
-    const queryIndex = requestUrl.indexOf('?');
-    const query = queryIndex < 0 ? '' : requestUrl.slice(queryIndex);
-    return `/themes/${match[1]}/theme.scss${query}`;
-};
-
-const validateSources = async () => {
-    const assetStats = await stat(assetsSource);
-    if (!assetStats.isDirectory()) throw new Error(`Static asset source is not a directory: ${assetsSource}`);
-
-    for (const file of staticFiles) {
-        const fileStats = await stat(file.source);
-        if (!fileStats.isFile()) throw new Error(`Static file source is not a file: ${file.source}`);
+    const source = path.resolve(sourceRoot, 'themes', match[1], 'theme.scss');
+    try {
+        if (!(await stat(source)).isFile()) return null;
+    } catch {
+        return null;
     }
+
+    return `/themes/${match[1]}/theme.scss${search}`;
 };
 
-const copyStaticFiles = async (outDir: string) => {
-    await cp(assetsSource, path.resolve(outDir, 'assets'), {
-        recursive: true,
-        force: true
-    });
+const themeDevelopmentPlugin = (): Plugin => ({
+    name: 'jellyfin-theme-development-url',
+    apply: 'serve',
+    configureServer(server) {
+        server.middlewares.use(async (request, _response, next) => {
+            if (!request.url || ![ 'GET', 'HEAD' ].includes(request.method || '')) {
+                next();
+                return;
+            }
 
-    for (const file of staticFiles) {
-        const target = path.resolve(outDir, file.target);
-        await mkdir(path.dirname(target), { recursive: true });
-        await copyFile(file.source, target);
+            try {
+                const themeUrl = await resolveThemeDevelopmentUrl(request.url);
+                if (themeUrl) request.url = themeUrl;
+                next();
+            } catch (error) {
+                next(error as Error);
+            }
+        });
     }
-};
+});
 
-export const staticCopyPlugin = (): Plugin => {
-    let config: ResolvedConfig;
-
-    return {
-        name: 'jellyfin-static-copy',
-        enforce: 'post',
-        async configResolved(resolvedConfig) {
-            config = resolvedConfig;
-            await validateSources();
-        },
-        configureServer(server) {
-            server.middlewares.use(async (request, response, next) => {
-                if (!request.url || ![ 'GET', 'HEAD' ].includes(request.method || '')) {
-                    next();
-                    return;
-                }
-
-                try {
-                    const themeUrl = await resolveThemeDevelopmentUrl(request.url);
-                    if (themeUrl) {
-                        request.url = themeUrl;
-                        next();
-                        return;
-                    }
-
-                    const source = await resolveStaticSource(request.url);
-                    if (!source) {
-                        next();
-                        return;
-                    }
-
-                    const fileStats = await stat(source);
-                    response.statusCode = 200;
-                    response.setHeader('Content-Length', fileStats.size);
-                    response.setHeader(
-                        'Content-Type',
-                        CONTENT_TYPES.get(path.extname(source).toLowerCase()) || 'application/octet-stream'
-                    );
-                    if (request.method === 'HEAD') {
-                        response.end();
-                    } else {
-                        createReadStream(source).pipe(response);
-                    }
-                } catch (error) {
-                    next(error as Error);
-                }
-            });
-        },
-        async writeBundle() {
-            await copyStaticFiles(config.build.outDir);
-        }
-    };
-};
+export const staticCopyPlugins = (command: ConfigEnv['command']): Plugin[] => [
+    themeDevelopmentPlugin(),
+    ...viteStaticCopy({
+        targets: getStaticCopyTargets(command)
+    })
+];

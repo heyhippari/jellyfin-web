@@ -1,41 +1,24 @@
 // @vitest-environment node
 
-import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
-    resolveStaticSource,
+    getStaticCopyTargets,
     resolveThemeDevelopmentUrl
 } from './vite.copy';
-import { repositoryRoot } from './vite.shared';
 
 describe('Vite static copy development paths', () => {
-    it('resolves copied libraries and assets to their source files', async () => {
-        await expect(resolveStaticSource('/libraries/worker-bundle.js?cache=1')).resolves.toBe(
-            path.resolve(repositoryRoot, 'node_modules/libarchive.js/dist/worker-bundle.js')
-        );
-        await expect(resolveStaticSource('/assets/img/avatar.png')).resolves.toBe(
-            path.resolve(repositoryRoot, 'src/assets/img/avatar.png')
-        );
-        await expect(resolveStaticSource('/config.json?cache=1')).resolves.toBe(
-            path.resolve(repositoryRoot, 'src/config.json')
-        );
-    });
-
-    it('leaves Vite module requests to the transform pipeline', async () => {
-        await expect(resolveStaticSource('/config.json?import')).resolves.toBeNull();
-        await expect(resolveStaticSource('/assets/img/avatar.png?import')).resolves.toBeNull();
-    });
-
-    it.each([
-        '/assets/../config.json',
-        '/assets/%2e%2e/config.json',
-        '/assets/..%2fconfig.json',
-        '/libraries/../package.json',
-        '/libraries/%2e%2e/package.json',
-        '/assets/%E0%A4%A'
-    ])('rejects unsafe or malformed path %s', async requestPath => {
-        await expect(resolveStaticSource(requestPath)).resolves.toBeNull();
+    it('leaves source-root assets to Vite in development and copies them in builds', () => {
+        expect(getStaticCopyTargets('serve')).not.toEqual(expect.arrayContaining([
+            expect.objectContaining({ src: 'assets' })
+        ]));
+        expect(getStaticCopyTargets('build')).toEqual(expect.arrayContaining([
+            expect.objectContaining({ src: 'assets', dest: '.' }),
+            expect.objectContaining({
+                src: [ 'config.json', 'manifest.json', 'robots.txt', 'serviceworker.js' ],
+                dest: '.'
+            })
+        ]));
     });
 
     it('rewrites stable theme CSS URLs to Vite SCSS inputs', async () => {
@@ -43,6 +26,8 @@ describe('Vite static copy development paths', () => {
             '/themes/dark/theme.scss?version=1'
         );
         await expect(resolveThemeDevelopmentUrl('/themes/../dark/theme.css')).resolves.toBeNull();
+        await expect(resolveThemeDevelopmentUrl('/themes/%2e%2e/dark/theme.css')).resolves.toBeNull();
         await expect(resolveThemeDevelopmentUrl('/themes/unknown/theme.css')).resolves.toBeNull();
+        await expect(resolveThemeDevelopmentUrl('/themes/%E0%A4%A/theme.css')).resolves.toBeNull();
     });
 });

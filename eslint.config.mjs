@@ -15,15 +15,6 @@ import stylistic from '@stylistic/eslint-plugin';
 // eslint-disable-next-line import/no-unresolved
 import tseslint from 'typescript-eslint';
 
-const buildTimeGlobals = {
-    __COMMIT_SHA__: 'readonly',
-    __JF_BUILD_VERSION__: 'readonly',
-    __PACKAGE_JSON_NAME__: 'readonly',
-    __PACKAGE_JSON_VERSION__: 'readonly',
-    __USE_SYSTEM_FONTS__: 'readonly',
-    __DEV_SERVER__: 'readonly'
-};
-
 export default tseslint.config(
     eslint.configs.recommended,
     tseslint.configs.recommended,
@@ -238,6 +229,9 @@ export default tseslint.config(
                 'webapis': false,
                 // WebOS globals
                 'webOS': false,
+                // Dependency globals
+                '$': false,
+                'jQuery': false,
                 // Jellyfin globals
                 'ApiClient': true,
                 'Events': true,
@@ -247,7 +241,12 @@ export default tseslint.config(
                 'LibraryMenu': true,
                 'Windows': false,
                 // Build time definitions
-                ...buildTimeGlobals
+                __COMMIT_SHA__: false,
+                __JF_BUILD_VERSION__: false,
+                __PACKAGE_JSON_NAME__: false,
+                __PACKAGE_JSON_VERSION__: false,
+                __USE_SYSTEM_FONTS__: false,
+                __DEV_SERVER__: false
             }
         },
         settings: {
@@ -397,30 +396,6 @@ export default tseslint.config(
         }
     },
 
-    // Legacy files that still consume jQuery through its compatibility globals
-    {
-        files: [
-            'src/components/tvproviders/schedulesdirect.js',
-            'src/components/tvproviders/xmltv.js',
-            'src/components/viewContainer.js',
-            'src/scripts/editorsidebar.js',
-            'src/scripts/libraryBrowser.js'
-        ],
-        languageOptions: {
-            globals: {
-                '$': false
-            }
-        }
-    },
-    {
-        files: [ 'src/scripts/editorsidebar.js' ],
-        languageOptions: {
-            globals: {
-                'jQuery': false
-            }
-        }
-    },
-
     // React files
     {
         files: [ 'src/**/*.{jsx,tsx}' ],
@@ -446,6 +421,7 @@ export default tseslint.config(
             }
         },
         rules: {
+            'no-var': 'off',
             'no-restricted-globals': ['error'].concat(restrictedGlobals.filter(global => global !== 'self'))
         }
     },

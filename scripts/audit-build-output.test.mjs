@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
     getLibarchiveWorkerErrors,
-    getServiceWorkerErrors
+    getServiceWorkerErrors,
+    getThemeContractErrors
 } from './audit-build-output.mjs';
 
 describe('service-worker output audit', () => {
@@ -25,6 +26,17 @@ describe('service-worker output audit', () => {
             importsSharedApplicationChunks: false,
             pageScriptReference: false
         })).toEqual([]);
+    });
+});
+
+describe('theme output audit', () => {
+    it('requires every configured theme to have a source entry', () => {
+        expect(getThemeContractErrors({
+            configuredIds: [ 'dark', 'missing' ],
+            sourceIds: [ 'dark', 'light' ]
+        })).toEqual([
+            'configured theme missing has no src/themes/missing/theme.scss source'
+        ]);
     });
 });
 

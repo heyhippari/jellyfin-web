@@ -71,19 +71,4 @@ Jellyfin Web is the frontend used for most of the clients available for end user
    npm run build:development
    ```
 
-5. Build and preview the production output.
-
-   ```sh
-   npm run build:production
-   npm run preview
-   ```
-
-   To test the legacy `nomodule` graph in an older browser or TV browser on
-   your network, expose the preview server deliberately and open its printed
-   URL from that device:
-
-   ```sh
-   npm run preview -- --host 0.0.0.0
-   ```
-
 Review the [Contributing Guide](./CONTRIBUTING.md) for more information on our process and tech stack.

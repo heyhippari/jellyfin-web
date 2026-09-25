@@ -1,7 +1,8 @@
 export const COPIED_ROOT_FILES = [
     'config.json',
     'manifest.json',
-    'robots.txt'
+    'robots.txt',
+    'serviceworker.js'
 ];
 
 export const FAVICON_FILES = [

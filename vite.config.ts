@@ -2,26 +2,42 @@
 import legacy from '@vitejs/plugin-legacy';
 // eslint-disable-next-line import/no-unresolved
 import react from '@vitejs/plugin-react';
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
-// eslint-disable-next-line import/no-unresolved
-import { visualizer } from 'rollup-plugin-visualizer';
-import { defineConfig, type Plugin } from 'vite';
-import type { OutputBundle, OutputOptions, PluginContext } from 'rollup';
+import { defineConfig } from 'vite';
 
-import { assertSupportedViteVersions } from './scripts/vite-version-guard.mjs';
 import { classicScriptTransformPlugin, legacyPolyfillEs5Plugin } from './vite.classic-script';
-import { staticCopyPlugin } from './vite.copy';
+import { staticCopyPlugins } from './vite.copy';
 import { libarchiveWorkerPlugin } from './vite.libarchive';
 import { createTsconfigPathsPlugin, repositoryRoot } from './vite.shared';
-
-const require = createRequire(import.meta.url);
-const { getBuildDefinitions } = require('./scripts/build-constants.cjs');
 
 const packageJson = JSON.parse(
     readFileSync(resolve(repositoryRoot, 'package.json'), 'utf8')
 );
+
+const getCommitSha = () => {
+    try {
+        // eslint-disable-next-line sonarjs/no-os-command-from-path
+        return execFileSync('git', [ 'describe', '--always', '--dirty' ], {
+            encoding: 'utf8'
+        }).trim();
+    } catch (error) {
+        console.warn('Failed to determine the current git revision.', error);
+        return '';
+    }
+};
+
+const getBuildDefinitions = (devServer: boolean) => ({
+    __COMMIT_SHA__: JSON.stringify(getCommitSha()),
+    __JF_BUILD_VERSION__: JSON.stringify(
+        devServer ? 'Dev Server' : process.env.JELLYFIN_VERSION || 'Release'
+    ),
+    __PACKAGE_JSON_NAME__: JSON.stringify(packageJson.name),
+    __PACKAGE_JSON_VERSION__: JSON.stringify(packageJson.version),
+    __USE_SYSTEM_FONTS__: Boolean(JSON.parse(process.env.USE_SYSTEM_FONTS || '0')),
+    __DEV_SERVER__: devServer
+});
 
 // date-fns locales are selected lazily at runtime. Vite's dev dependency scan
 // cannot discover those imports, so prebundle the CommonJS entry points that
@@ -34,52 +50,16 @@ const DATE_FNS_LOCALE_MODULES = [
     'sl', 'sv', 'ta', 'th', 'tr', 'uk', 'vi', 'zh-CN', 'zh-HK', 'zh-TW'
 ].map(locale => `date-fns/locale/${locale}/index.js`);
 
-const versionGuard = (): Plugin => ({
-    name: 'jellyfin-vite-version-guard',
-    apply: 'build',
-    config() {
-        assertSupportedViteVersions();
-    }
-});
-
-const visualizeOutputPlugin = (): Plugin => ({
-    name: 'jellyfin-vite-visualizer',
-    async generateBundle(this: PluginContext, output: OutputOptions, bundle: OutputBundle) {
-        // A Vite legacy build invokes Rollup once per output graph. Create a
-        // fresh visualizer for each invocation because the package caches the
-        // options it gets on its first call.
-        const visualizerPlugin = visualizer({
-            filename: resolve(
-                repositoryRoot,
-                `build-reports/vite-bundle-${output.format === 'system' ? 'legacy' : 'modern'}.html`
-            ),
-            gzipSize: true,
-            brotliSize: true,
-            open: false,
-            template: 'treemap',
-            title: `Jellyfin Web Vite ${output.format === 'system' ? 'legacy' : 'modern'} bundle graph`
-        });
-        if (typeof visualizerPlugin.generateBundle !== 'function') {
-            throw new Error('rollup-plugin-visualizer must provide a generateBundle hook.');
-        }
-        await visualizerPlugin.generateBundle.call(this, output, bundle);
-    }
-});
-
 export default defineConfig(({ command, isPreview, mode }) => ({
     root: resolve(repositoryRoot, 'src'),
     base: './',
-    define: getBuildDefinitions({
-        devServer: command === 'serve' && !isPreview,
-        packageJson
-    }),
+    define: getBuildDefinitions(command === 'serve' && !isPreview),
     optimizeDeps: {
         include: DATE_FNS_LOCALE_MODULES
     },
     plugins: [
-        versionGuard(),
         libarchiveWorkerPlugin(),
-        staticCopyPlugin(),
+        ...staticCopyPlugins(command),
         createTsconfigPathsPlugin(),
         react(),
         legacy({
@@ -106,24 +86,14 @@ export default defineConfig(({ command, isPreview, mode }) => ({
             ],
             modernPolyfills: false
         }),
-        legacyPolyfillEs5Plugin(packageJson.browserslist),
-        ...(process.env.VITE_VISUALIZE === 'true' ? [visualizeOutputPlugin()] : [])
+        legacyPolyfillEs5Plugin(packageJson.browserslist)
     ],
     build: {
         outDir: resolve(repositoryRoot, 'dist'),
         emptyOutDir: true,
         minify: mode === 'production',
         sourcemap: mode !== 'production',
-        manifest: true,
-        // Deliberately use Rollup's default chunking. Any future manualChunks
-        // rule needs a measured improvement recorded with the graph budget.
-        rollupOptions: {
-            output: {
-                entryFileNames: 'assets/[name]-[hash].js',
-                chunkFileNames: 'assets/[name]-[hash].js',
-                assetFileNames: 'assets/[name]-[hash][extname]'
-            }
-        }
+        manifest: true
     },
     worker: {
         format: 'iife',

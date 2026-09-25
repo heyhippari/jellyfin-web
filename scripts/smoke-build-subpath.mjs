@@ -35,25 +35,6 @@ const isPathInside = (parent, child) => {
     );
 };
 
-const listFiles = async directory => {
-    const { readdir } = await import('node:fs/promises');
-    const entries = await readdir(directory, { withFileTypes: true });
-    const files = [];
-
-    for (const entry of entries) {
-        const entryPath = path.join(directory, entry.name);
-        if (entry.isDirectory()) {
-            for (const nestedFile of await listFiles(entryPath)) {
-                files.push(path.join(entry.name, nestedFile));
-            }
-        } else if (entry.isFile()) {
-            files.push(entry.name);
-        }
-    }
-
-    return files.sort();
-};
-
 const createFixtureServer = distDirectory => createServer(async (request, response) => {
     try {
         // eslint-disable-next-line sonarjs/no-clear-text-protocols -- Synthetic URL for a loopback-only fixture.
@@ -111,18 +92,6 @@ const fetchChecked = async (url, { method = 'GET', expectedType } = {}) => {
     return response;
 };
 
-const mapWithConcurrency = async (values, concurrency, callback) => {
-    let nextIndex = 0;
-    const workers = Array.from({ length: Math.min(concurrency, values.length) }, async () => {
-        while (nextIndex < values.length) {
-            const currentIndex = nextIndex;
-            nextIndex += 1;
-            await callback(values[currentIndex]);
-        }
-    });
-    await Promise.all(workers);
-};
-
 const extractCssUrls = css => {
     const urls = [];
     // eslint-disable-next-line sonarjs/slow-regex -- Input is trusted CSS emitted by the local build.
@@ -157,7 +126,6 @@ export const runSubpathSmoke = async ({
     const failures = [];
     const checked = {
         htmlReferences: 0,
-        lazyChunks: 0,
         manifestIcons: 0,
         themeAssets: 0,
         themes: 0,
@@ -191,20 +159,6 @@ export const runSubpathSmoke = async ({
                 checked.htmlReferences += 1;
             });
         }
-
-        const outputFiles = await listFiles(resolvedDistDirectory);
-        const lazyChunks = outputFiles.filter(relativePath => (
-            /\.chunk\.(?:js|css)$/.test(relativePath)
-            || /(?:^|[.-])legacy[.-].*\.js$/.test(relativePath)
-        ));
-        await mapWithConcurrency(lazyChunks, 32, async relativePath => {
-            await attempt(async () => {
-                await fetchChecked(new URL(relativePath.replaceAll(path.sep, '/'), baseUrl), {
-                    method: 'HEAD'
-                });
-                checked.lazyChunks += 1;
-            });
-        });
 
         await attempt(async () => {
             const configResponse = await fetchChecked(`${baseUrl}config.json`, {
@@ -293,7 +247,6 @@ if (isMainModule) {
         console.log(`Subpath smoke test: ${report.status.toUpperCase()}`);
         console.log(`Fixture prefix: ${report.prefix}`);
         console.log(`HTML references checked: ${report.checked.htmlReferences}`);
-        console.log(`Lazy chunks checked: ${report.checked.lazyChunks}`);
         console.log(`Themes checked: ${report.checked.themes}`);
         console.log(`Manifest icons checked: ${report.checked.manifestIcons}`);
         console.log(`Workers/libraries checked: ${report.checked.workersAndLibraries}`);
