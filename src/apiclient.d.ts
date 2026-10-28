@@ -270,6 +270,7 @@ declare module 'jellyfin-apiclient' {
         sendWebSocketMessage(name: string, data: any): void;
         serverAddress(val?: string): string;
         serverId(): string;
+        serverInfo(info?: any): any;
         serverVersion(): string;
         setAuthenticationInfo(accessKey?: string, userId?: string): void;
         setRequestHeaders(headers: any): void;

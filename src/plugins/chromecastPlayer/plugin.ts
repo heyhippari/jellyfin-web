@@ -1,4 +1,13 @@
+import type { BaseItemDto } from '@jellyfin/sdk/lib/generated-client/models/base-item-dto';
+import type { MediaType } from '@jellyfin/sdk/lib/generated-client/models/media-type';
+import type { RepeatMode } from '@jellyfin/sdk/lib/generated-client/models/repeat-mode';
+import type { ApiClient } from 'jellyfin-apiclient';
+
 import { PluginType } from 'constants/pluginType';
+import type { ItemDto } from 'types/base/models/item-dto';
+import type { PlayerState, PlayState } from 'types/playbackStopInfo';
+import type { PlayOptions } from 'types/playOptions';
+import type { Plugin } from 'types/plugin';
 
 import appSettings from '../../scripts/settings/appSettings';
 import * as userSettings from '../../scripts/settings/userSettings';
@@ -7,8 +16,8 @@ import globalize from '../../lib/globalize';
 import CastSenderApi from './castSenderApi';
 import alert from '../../components/alert';
 import { ServerConnections } from 'lib/jellyfin-apiclient';
-import Events from '../../utils/events.ts';
-import { getItems } from '../../utils/jellyfin-apiclient/getItems.ts';
+import Events from '../../utils/events';
+import { getItems } from '../../utils/jellyfin-apiclient/getItems';
 
 // Based on https://github.com/googlecast/CastVideos-chrome/blob/master/CastVideos.js
 
@@ -18,9 +27,9 @@ const PlayerName = 'Google Cast';
  * Some async CastSDK function are completed with callbacks.
  * sendConnectionResult turns this into completion as a promise.
  */
-let _currentResolve = null;
-let _currentReject = null;
-function sendConnectionResult(isOk) {
+let _currentResolve: (() => void) | null = null;
+let _currentReject: (() => void) | null = null;
+function sendConnectionResult(isOk: boolean) {
     const resolve = _currentResolve;
     const reject = _currentReject;
 
@@ -41,46 +50,102 @@ function sendConnectionResult(isOk) {
 /**
  * Constants of states for Chromecast device
  **/
-const DEVICE_STATE = {
-    'IDLE': 0,
-    'ACTIVE': 1,
-    'WARNING': 2,
-    'ERROR': 3
-};
+enum DeviceState {
+    IDLE = 0,
+    ACTIVE = 1,
+    WARNING = 2,
+    ERROR = 3
+}
 
 /**
  * Constants of states for CastPlayer
  **/
-const PLAYER_STATE = {
-    'IDLE': 'IDLE',
-    'LOADING': 'LOADING',
-    'LOADED': 'LOADED',
-    'PLAYING': 'PLAYING',
-    'PAUSED': 'PAUSED',
-    'STOPPED': 'STOPPED',
-    'SEEKING': 'SEEKING',
-    'ERROR': 'ERROR'
-};
+enum CastPlayerState {
+    IDLE = 'IDLE',
+    LOADING = 'LOADING',
+    LOADED = 'LOADED',
+    PLAYING = 'PLAYING',
+    PAUSED = 'PAUSED',
+    STOPPED = 'STOPPED',
+    SEEKING = 'SEEKING',
+    ERROR = 'ERROR'
+}
 
 const messageNamespace = 'urn:x-cast:com.connectsdk';
 
+/** The now playing item as reported by the receiver */
+interface CastNowPlayingItem extends ItemDto {
+    PrimaryImageTag?: string | null;
+    BackdropImageTag?: string | null;
+    BackdropItemId?: string | null;
+}
+
+interface CastPlayState extends PlayState {
+    IsFullscreen?: boolean;
+}
+
+/** The player state as reported by the receiver */
+interface CastPlayerData extends Partial<Omit<PlayerState, 'NowPlayingItem' | 'PlayState'>> {
+    ItemId?: string | null;
+    NowPlayingItem?: CastNowPlayingItem | null;
+    PlayState?: CastPlayState;
+    nextItem?: BaseItemDto | null;
+}
+
+interface CastMessageOptions {
+    ServerId?: string | null;
+    items?: BaseItemDto[] | null;
+    [key: string]: unknown;
+}
+
+interface CastPlayOptions extends PlayOptions, CastMessageOptions {
+    ids?: string[];
+    serverId?: string;
+}
+
+type CastPlayOptionsWithItems = CastPlayOptions & { items: BaseItemDto[] };
+
+interface CastMessage {
+    options?: CastMessageOptions;
+    command: string;
+}
+
+/** A message sent to the receiver, including the server connection info */
+interface CastOutgoingMessage extends CastMessage {
+    userId: string;
+    deviceId: string;
+    accessToken: string;
+    serverAddress: string;
+    serverId: string;
+    serverVersion: string;
+    receiverName: string | null;
+    maxBitrate?: number;
+    subtitleAppearance?: ReturnType<typeof userSettings.getSubtitleAppearanceSettings>;
+    subtitleBurnIn?: string;
+}
+
+/** A message received from the receiver */
+interface CastReceiverMessage {
+    type?: string;
+    data?: unknown;
+}
+
 class CastPlayer {
+    /* device variables */
+    deviceState = DeviceState.IDLE;
+
+    /* Cast player variables */
+    currentMediaSession: chrome.cast.media.Media | null = null;
+    session: chrome.cast.Session | null = null;
+    castPlayerState: CastPlayerState | chrome.cast.media.PlayerState = CastPlayerState.IDLE;
+
+    hasReceivers = false;
+    isInitialized?: boolean;
+
+    errorHandler: (error: chrome.cast.Error) => void;
+    mediaStatusUpdateHandler: (isAlive: boolean) => void;
+
     constructor() {
-        /* device variables */
-        // @type {DEVICE_STATE} A state for device
-        this.deviceState = DEVICE_STATE.IDLE;
-
-        /* Cast player variables */
-        // @type {Object} a chrome.cast.media.Media object
-        this.currentMediaSession = null;
-
-        // @type {string} a chrome.cast.Session object
-        this.session = null;
-        // @type {PLAYER_STATE} A state for Cast media player
-        this.castPlayerState = PLAYER_STATE.IDLE;
-
-        this.hasReceivers = false;
-
         // bind once - commit 2ebffc2271da0bc5e8b13821586aee2a2e3c7753
         this.errorHandler = this.onError.bind(this);
         this.mediaStatusUpdateHandler = this.onMediaStatusUpdate.bind(this);
@@ -106,11 +171,11 @@ class CastPlayer {
             return;
         }
 
-        const apiClient = ServerConnections.currentApiClient();
+        const apiClient = requireApiClient(ServerConnections.currentApiClient());
         const userId = apiClient.getCurrentUserId();
 
-        apiClient.getUser(userId).then(user => {
-            const applicationID = user.Configuration.CastReceiverId;
+        void apiClient.getUser(userId).then(user => {
+            const applicationID = user.Configuration!.CastReceiverId;
             if (!applicationID) {
                 console.warn(`Not initializing chromecast: CastReceiverId is ${applicationID}`);
                 return;
@@ -143,13 +208,13 @@ class CastPlayer {
     }
 
     /**
-     * @param {!Object} e A new session
+     * @param e A new session
      * This handles auto-join when a page is reloaded
      * When active session is detected, playback will automatically
      * join existing session and occur in Cast mode and media
      * status gets synced up with current media of the session
      */
-    sessionListener(e) {
+    sessionListener(e: chrome.cast.Session) {
         this.session = e;
         if (this.session) {
             if (this.session.media[0]) {
@@ -161,31 +226,29 @@ class CastPlayer {
     }
 
     // messageListener - receive callback messages from the Cast receiver
-    messageListener(namespace, message) {
-        if (typeof (message) === 'string') {
-            message = JSON.parse(message);
-        }
+    messageListener(namespace: string, message: string | CastReceiverMessage) {
+        const receiverMessage: CastReceiverMessage = typeof message === 'string' ? JSON.parse(message) : message;
 
-        if (message.type === 'playbackerror') {
-            const errorCode = message.data;
+        if (receiverMessage.type === 'playbackerror') {
+            const errorCode = receiverMessage.data;
             setTimeout(function () {
                 alertText(globalize.translate('MessagePlaybackError' + errorCode), globalize.translate('HeaderPlaybackError'));
             }, 300);
-        } else if (message.type === 'connectionerror') {
+        } else if (receiverMessage.type === 'connectionerror') {
             setTimeout(function () {
                 alertText(globalize.translate('MessageChromecastConnectionError'), globalize.translate('HeaderError'));
             }, 300);
-        } else if (message.type) {
-            Events.trigger(this, message.type, [message.data]);
+        } else if (receiverMessage.type) {
+            Events.trigger(this, receiverMessage.type, [receiverMessage.data]);
         }
     }
 
     /**
-     * @param {string} e Receiver availability
+     * @param e Receiver availability
      * This indicates availability of receivers but
      * does not provide a list of device IDs
      */
-    receiverListener(e) {
+    receiverListener(e: chrome.cast.ReceiverAvailability) {
         if (e === 'available') {
             console.debug('[chromecastPlayer] receiver found');
             this.hasReceivers = true;
@@ -198,13 +261,13 @@ class CastPlayer {
     /**
      * session update listener
      */
-    sessionUpdateListener(isAlive) {
+    sessionUpdateListener(isAlive: boolean) {
         if (isAlive) {
             console.debug('[chromecastPlayer] sessionUpdateListener: already alive');
         } else {
             this.session = null;
-            this.deviceState = DEVICE_STATE.IDLE;
-            this.castPlayerState = PLAYER_STATE.IDLE;
+            this.deviceState = DeviceState.IDLE;
+            this.castPlayerState = CastPlayerState.IDLE;
             document.removeEventListener('volumeupbutton', onVolumeUpKeyDown, false);
             document.removeEventListener('volumedownbutton', onVolumeDownKeyDown, false);
 
@@ -227,16 +290,16 @@ class CastPlayer {
 
     /**
      * Callback function for request session success
-     * @param {Object} e A chrome.cast.Session object
+     * @param e A chrome.cast.Session object
      */
-    onRequestSessionSuccess(e) {
+    onRequestSessionSuccess(e: chrome.cast.Session) {
         console.debug('[chromecastPlayer] session success: ' + e.sessionId);
         this.onSessionConnected(e);
     }
 
-    onSessionConnected(session) {
+    onSessionConnected(session: chrome.cast.Session) {
         this.session = session;
-        this.deviceState = DEVICE_STATE.ACTIVE;
+        this.deviceState = DeviceState.ACTIVE;
 
         this.session.addMessageListener(messageNamespace, this.messageListener.bind(this));
         this.session.addMediaListener(this.sessionMediaListener.bind(this));
@@ -246,7 +309,7 @@ class CastPlayer {
         document.addEventListener('volumedownbutton', onVolumeDownKeyDown, false);
 
         Events.trigger(this, 'connect');
-        this.sendMessage({
+        void this.sendMessage({
             options: {},
             command: 'Identify'
         });
@@ -255,7 +318,7 @@ class CastPlayer {
     /**
      * session update listener
      */
-    sessionMediaListener(e) {
+    sessionMediaListener(e: chrome.cast.media.Media) {
         this.currentMediaSession = e;
         this.currentMediaSession.addUpdateListener(this.mediaStatusUpdateHandler);
     }
@@ -265,7 +328,7 @@ class CastPlayer {
      */
     onLaunchError() {
         console.debug('[chromecastPlayer] launch error');
-        this.deviceState = DEVICE_STATE.ERROR;
+        this.deviceState = DeviceState.ERROR;
         sendConnectionResult(false);
     }
 
@@ -281,11 +344,11 @@ class CastPlayer {
     /**
      * Callback function for stop app success
      */
-    onStopAppSuccess(message) {
+    onStopAppSuccess(message: string) {
         console.debug(message);
 
-        this.deviceState = DEVICE_STATE.IDLE;
-        this.castPlayerState = PLAYER_STATE.IDLE;
+        this.deviceState = DeviceState.IDLE;
+        this.castPlayerState = CastPlayerState.IDLE;
         document.removeEventListener('volumeupbutton', onVolumeUpKeyDown, false);
         document.removeEventListener('volumedownbutton', onVolumeDownKeyDown, false);
 
@@ -293,11 +356,22 @@ class CastPlayer {
     }
 
     /**
-     * Loads media into a running receiver application
-     * @param {Number} mediaIndex - An index number to indicate current media content
-     * @returns Promise
+     * Returns the current session, or throws if there is none.
      */
-    loadMedia(options, command) {
+    getSession() {
+        if (!this.session) {
+            throw new Error('[chromecastPlayer] no session');
+        }
+
+        return this.session;
+    }
+
+    /**
+     * Loads media into a running receiver application
+     * @param options - The play options, including the items to play
+     * @param command - The command to send to the receiver
+     */
+    loadMedia(options: CastPlayOptionsWithItems, command: string) {
         if (!this.session) {
             console.debug('[chromecastPlayer] no session');
             return Promise.reject(new Error('no session'));
@@ -321,12 +395,10 @@ class CastPlayer {
         });
     }
 
-    sendMessage(message) {
-        const player = this;
-
+    sendMessage(message: CastMessage) {
         let receiverName = null;
 
-        const session = player.session;
+        const session = this.session;
 
         if (session?.receiver?.friendlyName) {
             receiverName = session.receiver.friendlyName;
@@ -340,6 +412,7 @@ class CastPlayer {
         } else {
             apiClient = ServerConnections.currentApiClient();
         }
+        apiClient = requireApiClient(apiClient);
 
         /* If serverAddress is localhost,this address can not be used for the cast receiver device.
          * Use the local address (ULA, Unique Local Address) in that case.
@@ -349,7 +422,7 @@ class CastPlayer {
         const isLocalhost = hostname === 'localhost' || hostname.startsWith('127.') || hostname === '[::1]';
         const serverLocalAddress = isLocalhost ? apiClient.serverInfo().LocalAddress : serverAddress;
 
-        message = Object.assign(message, {
+        const outgoingMessage: CastOutgoingMessage = Object.assign(message, {
             userId: apiClient.getCurrentUserId(),
             deviceId: apiClient.deviceId(),
             accessToken: apiClient.accessToken(),
@@ -359,25 +432,25 @@ class CastPlayer {
             receiverName: receiverName
         });
 
-        console.debug('[chromecastPlayer] message{' + message.command + '; ' + serverAddress + ' -> ' + serverLocalAddress + '}');
+        console.debug('[chromecastPlayer] message{' + outgoingMessage.command + '; ' + serverAddress + ' -> ' + serverLocalAddress + '}');
 
         const bitrateSetting = appSettings.maxChromecastBitrate();
         if (bitrateSetting) {
-            message.maxBitrate = bitrateSetting;
+            outgoingMessage.maxBitrate = bitrateSetting;
         }
 
-        if (message.options?.items) {
-            message.subtitleAppearance = userSettings.getSubtitleAppearanceSettings();
-            message.subtitleBurnIn = appSettings.get('subtitleburnin') || '';
+        if (outgoingMessage.options?.items) {
+            outgoingMessage.subtitleAppearance = userSettings.getSubtitleAppearanceSettings();
+            outgoingMessage.subtitleBurnIn = appSettings.get('subtitleburnin') || '';
         }
 
-        return player.sendMessageInternal(message);
+        return this.sendMessageInternal(outgoingMessage);
     }
 
-    sendMessageInternal(message) {
-        message = JSON.stringify(message);
+    sendMessageInternal(message: CastOutgoingMessage) {
+        const serializedMessage = JSON.stringify(message);
 
-        this.session.sendMessage(messageNamespace, message, this.onPlayCommandSuccess.bind(this), this.errorHandler);
+        this.getSession().sendMessage(messageNamespace, serializedMessage, this.onPlayCommandSuccess.bind(this), this.errorHandler);
         return Promise.resolve();
     }
 
@@ -387,14 +460,15 @@ class CastPlayer {
 
     /**
      * Callback function for loadMedia success
-     * @param {Object} media A new media object.
+     * @param how How the media was discovered
+     * @param media A new media object.
      */
-    onMediaDiscovered(how, media) {
+    onMediaDiscovered(how: 'activeSession' | 'loadMedia', media: chrome.cast.media.Media) {
         console.debug('[chromecastPlayer] new media session ID:' + media.mediaSessionId + ' (' + how + ')');
         this.currentMediaSession = media;
 
         if (how === 'loadMedia') {
-            this.castPlayerState = PLAYER_STATE.PLAYING;
+            this.castPlayerState = CastPlayerState.PLAYING;
         }
 
         if (how === 'activeSession') {
@@ -406,31 +480,32 @@ class CastPlayer {
 
     /**
      * Callback function for media status update from receiver
-     * @param {!Boolean} e true/false
+     * @param e true/false
      */
-    onMediaStatusUpdate(e) {
+    onMediaStatusUpdate(e: boolean) {
         console.debug('[chromecastPlayer] updating media: ' + e);
         if (e === false) {
-            this.castPlayerState = PLAYER_STATE.IDLE;
+            this.castPlayerState = CastPlayerState.IDLE;
         }
     }
 
     /**
      * Set media volume in Cast mode
-     * @param {Boolean} mute A boolean
+     * @param mute A boolean
+     * @param vol The volume level
      */
-    setReceiverVolume(mute, vol) {
+    setReceiverVolume(mute: boolean, vol?: number) {
         if (!this.currentMediaSession) {
             console.debug('this.currentMediaSession is null');
             return;
         }
 
         if (!mute) {
-            this.session.setReceiverVolumeLevel((vol || 1),
+            this.getSession().setReceiverVolumeLevel((vol || 1),
                 this.mediaCommandSuccessCallback.bind(this),
                 this.errorHandler);
         } else {
-            this.session.setReceiverMuted(true,
+            this.getSession().setReceiverMuted(true,
                 this.mediaCommandSuccessCallback.bind(this),
                 this.errorHandler);
         }
@@ -446,13 +521,31 @@ class CastPlayer {
     /**
      * Callback function for media command success
      */
-    mediaCommandSuccessCallback(info) {
+    mediaCommandSuccessCallback(info?: unknown) {
         console.debug(info);
     }
 }
 
-function alertText(text, title) {
-    alert({
+/**
+ * Returns the ApiClient, or throws if it is undefined.
+ */
+function requireApiClient(apiClient: ApiClient | undefined) {
+    if (!apiClient) {
+        throw new Error('[chromecastPlayer] no ApiClient available');
+    }
+
+    return apiClient;
+}
+
+/**
+ * Sets the receiver volume level without success or error callbacks.
+ */
+function setReceiverVolumeLevel(session: chrome.cast.Session, level: number) {
+    session.setReceiverVolumeLevel(level, () => { /* empty */ }, () => { /* empty */ });
+}
+
+function alertText(text: string, title: string) {
+    void alert({
         text,
         title
     });
@@ -466,7 +559,7 @@ function onVolumeDownKeyDown() {
     playbackManager.volumeDown();
 }
 
-function normalizeImages(state) {
+function normalizeImages(state: CastPlayerData | null | undefined) {
     if (state?.NowPlayingItem) {
         const item = state.NowPlayingItem;
 
@@ -484,11 +577,19 @@ function normalizeImages(state) {
     }
 }
 
-function getItemsForPlayback(apiClient, query) {
+interface ItemsForPlaybackQuery {
+    Ids?: string;
+    Limit?: number;
+    ExcludeLocationTypes?: string;
+    EnableTotalRecordCount?: boolean;
+}
+
+function getItemsForPlayback(apiClient: ApiClient, query: ItemsForPlaybackQuery) {
     const userId = apiClient.getCurrentUserId();
 
     if (query.Ids && query.Ids.split(',').length === 1) {
-        return apiClient.getItem(userId, query.Ids.split(',')).then(function (item) {
+        // Ids contains exactly one id here
+        return apiClient.getItem(userId, query.Ids).then(function (item) {
             return {
                 Items: [item],
                 TotalRecordCount: 1
@@ -503,11 +604,15 @@ function getItemsForPlayback(apiClient, query) {
     }
 }
 
+function hasItems(options: CastPlayOptions): options is CastPlayOptionsWithItems {
+    return !!options.items;
+}
+
 /*
  * relay castPlayer events to ChromecastPlayer events and include state info
  */
-function bindEventForRelay(instance, eventName) {
-    Events.on(instance._castPlayer, eventName, function (e, data) {
+function bindEventForRelay(instance: ChromecastPlayer, castPlayer: CastPlayer, eventName: string) {
+    Events.on(castPlayer, eventName, function (_e, data?: CastPlayerData) {
         console.debug('[chromecastPlayer] ' + eventName);
         // skip events without data
         if (data?.ItemId) {
@@ -517,9 +622,9 @@ function bindEventForRelay(instance, eventName) {
     });
 }
 
-function initializeChromecast() {
-    const instance = this;
-    instance._castPlayer = new CastPlayer();
+function initializeChromecast(instance: ChromecastPlayer) {
+    const castPlayer = new CastPlayer();
+    instance._castPlayer = castPlayer;
 
     // To allow the native android app to override
     document.dispatchEvent(new CustomEvent('chromecastloaded', {
@@ -528,7 +633,7 @@ function initializeChromecast() {
         }
     }));
 
-    Events.on(instance._castPlayer, 'connect', function () {
+    Events.on(castPlayer, 'connect', function () {
         if (_currentResolve) {
             sendConnectionResult(true);
         } else {
@@ -540,10 +645,10 @@ function initializeChromecast() {
         instance.lastPlayerData = null;
     });
 
-    Events.on(instance._castPlayer, 'playbackstart', function (e, data) {
+    Events.on(castPlayer, 'playbackstart', function (_e, data: CastPlayerData) {
         console.debug('[chromecastPlayer] playbackstart');
 
-        instance._castPlayer.initializeCastPlayer();
+        castPlayer.initializeCastPlayer();
 
         const state = instance.getPlayerStateInternal(data);
         Events.trigger(instance, 'playbackstart', [state]);
@@ -552,10 +657,10 @@ function initializeChromecast() {
         instance._playNextAfterEnded = true;
     });
 
-    Events.on(instance._castPlayer, 'playbackstop', function (e, data) {
+    Events.on(castPlayer, 'playbackstop', function (_e, data: CastPlayerData) {
         console.debug('[chromecastPlayer] playbackstop');
 
-        let state = instance.getPlayerStateInternal(data);
+        const state = instance.getPlayerStateInternal(data);
 
         if (!instance._playNextAfterEnded) {
             // mark that no next media items are to be processed.
@@ -564,9 +669,9 @@ function initializeChromecast() {
         }
         Events.trigger(instance, 'playbackstop', [state]);
 
-        state = instance.lastPlayerData.PlayState || {};
-        const volume = state.VolumeLevel || 0.5;
-        const mute = state.IsMuted || false;
+        const playState = instance.lastPlayerData!.PlayState || {};
+        const volume = playState.VolumeLevel || 0.5;
+        const mute = playState.IsMuted || false;
 
         // Reset this so the next query doesn't make it appear like content is playing.
         instance.lastPlayerData = {
@@ -577,21 +682,21 @@ function initializeChromecast() {
         };
     });
 
-    Events.on(instance._castPlayer, 'playbackprogress', function (e, data) {
+    Events.on(castPlayer, 'playbackprogress', function (_e, data: CastPlayerData) {
         console.debug('[chromecastPlayer] positionchange');
         const state = instance.getPlayerStateInternal(data);
 
         Events.trigger(instance, 'timeupdate', [state]);
     });
 
-    bindEventForRelay(instance, 'timeupdate');
-    bindEventForRelay(instance, 'pause');
-    bindEventForRelay(instance, 'unpause');
-    bindEventForRelay(instance, 'volumechange');
-    bindEventForRelay(instance, 'repeatmodechange');
-    bindEventForRelay(instance, 'shufflequeuemodechange');
+    bindEventForRelay(instance, castPlayer, 'timeupdate');
+    bindEventForRelay(instance, castPlayer, 'pause');
+    bindEventForRelay(instance, castPlayer, 'unpause');
+    bindEventForRelay(instance, castPlayer, 'volumechange');
+    bindEventForRelay(instance, castPlayer, 'repeatmodechange');
+    bindEventForRelay(instance, castPlayer, 'shufflequeuemodechange');
 
-    Events.on(instance._castPlayer, 'playstatechange', function (e, data) {
+    Events.on(castPlayer, 'playstatechange', function (_e, data: CastPlayerData) {
         console.debug('[chromecastPlayer] playstatechange');
 
         // Updates the player and nowPlayingBar state to the current 'pause' state.
@@ -600,34 +705,51 @@ function initializeChromecast() {
     });
 }
 
-class ChromecastPlayer {
-    constructor() {
-        // playbackManager needs this
-        this.name = PlayerName;
-        this.type = PluginType.MediaPlayer;
-        this.id = 'chromecast';
-        this.isLocalPlayer = false;
-        this.lastPlayerData = {};
-
-        new CastSenderApi().load().then(() => {
-            Events.on(ServerConnections, 'localusersignedin', () => {
-                initializeChromecast.call(this);
-            });
-
-            if (ServerConnections.currentUserId) {
-                initializeChromecast.call(this);
-            }
+function loadChromecast(instance: ChromecastPlayer) {
+    void new CastSenderApi().load().then(() => {
+        Events.on(ServerConnections, 'localusersignedin', () => {
+            initializeChromecast(instance);
         });
+
+        // NOTE: ServerConnections has no currentUserId property, so this is always falsy.
+        if ((ServerConnections as { currentUserId?: string }).currentUserId) {
+            initializeChromecast(instance);
+        }
+    });
+}
+
+class ChromecastPlayer implements Plugin {
+    // playbackManager needs this
+    name = PlayerName;
+    type = PluginType.MediaPlayer;
+    id = 'chromecast';
+    isLocalPlayer = false;
+    lastPlayerData: CastPlayerData | null = {};
+
+    _castPlayer?: CastPlayer;
+    _playNextAfterEnded?: boolean;
+
+    constructor() {
+        loadChromecast(this);
+    }
+
+    /** The cast player, which is only available once chromecast has been initialized */
+    private get castPlayer() {
+        if (!this._castPlayer) {
+            throw new Error('[chromecastPlayer] chromecast is not initialized');
+        }
+
+        return this._castPlayer;
     }
 
     /*
      * Cast button handling: select and connect to chromecast receiver
      */
     tryPair() {
-        const castPlayer = this._castPlayer;
+        const castPlayer = this.castPlayer;
 
-        if (castPlayer.deviceState !== DEVICE_STATE.ACTIVE && castPlayer.isInitialized) {
-            return new Promise(function (resolve, reject) {
+        if (castPlayer.deviceState !== DeviceState.ACTIVE && castPlayer.isInitialized) {
+            return new Promise<void>(function (resolve, reject) {
                 _currentResolve = resolve;
                 _currentReject = reject;
                 castPlayer.launchApp();
@@ -653,7 +775,7 @@ class ChromecastPlayer {
     getCurrentTargetInfo() {
         let appName = null;
 
-        const castPlayer = this._castPlayer;
+        const castPlayer = this.castPlayer;
 
         if (castPlayer.session?.receiver?.friendlyName) {
             appName = castPlayer.session.receiver.friendlyName;
@@ -683,7 +805,9 @@ class ChromecastPlayer {
         };
     }
 
-    getPlayerStateInternal(data) {
+    getPlayerStateInternal(data: CastPlayerData): CastPlayerData;
+    getPlayerStateInternal(data?: CastPlayerData | null): CastPlayerData | null;
+    getPlayerStateInternal(data?: CastPlayerData | null) {
         let triggerStateChange = false;
         if (data && !this.lastPlayerData) {
             triggerStateChange = true;
@@ -701,42 +825,40 @@ class ChromecastPlayer {
         return data;
     }
 
-    playWithCommand(options, command) {
-        if (!options.items) {
-            const apiClient = ServerConnections.getApiClient(options.serverId);
-            const instance = this;
+    playWithCommand(options: CastPlayOptions, command: string): Promise<void> {
+        if (!hasItems(options)) {
+            const apiClient = requireApiClient(ServerConnections.getApiClient(options.serverId));
 
-            return apiClient.getItem(apiClient.getCurrentUserId(), options.ids[0]).then(function (item) {
+            return apiClient.getItem(apiClient.getCurrentUserId(), options.ids![0]).then(item => {
                 options.items = [item];
-                return instance.playWithCommand(options, command);
+                return this.playWithCommand(options, command);
             });
         }
 
-        if (options.items.length > 1 && options?.ids) {
+        const ids = options.ids;
+        if (options.items.length > 1 && ids) {
             // Use the original request id array for sorting the result in the proper order
             options.items.sort(function (a, b) {
-                return options.ids.indexOf(a.Id) - options.ids.indexOf(b.Id);
+                return ids.indexOf(a.Id!) - ids.indexOf(b.Id!);
             });
         }
 
-        return this._castPlayer.loadMedia(options, command);
+        return this.castPlayer.loadMedia(options, command);
     }
 
-    seek(position) {
-        position = parseInt(position, 10);
+    seek(position: number | string) {
+        const seconds = parseInt(String(position), 10) / 10000000;
 
-        position = position / 10000000;
-
-        this._castPlayer.sendMessage({
+        void this.castPlayer.sendMessage({
             options: {
-                position: position
+                position: seconds
             },
             command: 'Seek'
         });
     }
 
-    setAudioStreamIndex(index) {
-        this._castPlayer.sendMessage({
+    setAudioStreamIndex(index: number) {
+        void this.castPlayer.sendMessage({
             options: {
                 index: index
             },
@@ -744,8 +866,8 @@ class ChromecastPlayer {
         });
     }
 
-    setSubtitleStreamIndex(index) {
-        this._castPlayer.sendMessage({
+    setSubtitleStreamIndex(index: number) {
+        void this.castPlayer.sendMessage({
             options: {
                 index: index
             },
@@ -753,89 +875,81 @@ class ChromecastPlayer {
         });
     }
 
-    setMaxStreamingBitrate(options) {
-        this._castPlayer.sendMessage({
+    setMaxStreamingBitrate(options: CastMessageOptions) {
+        void this.castPlayer.sendMessage({
             options: options,
             command: 'SetMaxStreamingBitrate'
         });
     }
 
     isFullscreen() {
-        let state = this.lastPlayerData || {};
-        state = state.PlayState || {};
-        return state.IsFullscreen;
+        return this.lastPlayerData?.PlayState?.IsFullscreen;
     }
 
     nextTrack() {
-        this._castPlayer.sendMessage({
+        void this.castPlayer.sendMessage({
             options: {},
             command: 'NextTrack'
         });
     }
 
     previousTrack() {
-        this._castPlayer.sendMessage({
+        void this.castPlayer.sendMessage({
             options: {},
             command: 'PreviousTrack'
         });
     }
 
     volumeDown() {
-        let vol = this._castPlayer.session.receiver.volume.level;
-        if (vol == null) {
-            vol = 0.5;
-        }
+        const session = this.castPlayer.getSession();
+        let vol = session.receiver.volume.level ?? 0.5;
         vol -= 0.05;
         vol = Math.max(vol, 0);
 
-        this._castPlayer.session.setReceiverVolumeLevel(vol);
+        setReceiverVolumeLevel(session, vol);
     }
 
     endSession() {
-        const instance = this;
-
-        this.stop().then(function () {
-            setTimeout(function () {
-                instance._castPlayer.stopApp();
+        void this.stop().then(() => {
+            setTimeout(() => {
+                this.castPlayer.stopApp();
             }, 1000);
         });
     }
 
     volumeUp() {
-        let vol = this._castPlayer.session.receiver.volume.level;
-        if (vol == null) {
-            vol = 0.5;
-        }
+        const session = this.castPlayer.getSession();
+        let vol = session.receiver.volume.level ?? 0.5;
         vol += 0.05;
         vol = Math.min(vol, 1);
 
-        this._castPlayer.session.setReceiverVolumeLevel(vol);
+        setReceiverVolumeLevel(session, vol);
     }
 
-    setVolume(vol) {
+    setVolume(vol: number) {
         vol = Math.min(vol, 100);
         vol = Math.max(vol, 0);
         vol = vol / 100;
 
-        this._castPlayer.session.setReceiverVolumeLevel(vol);
+        setReceiverVolumeLevel(this.castPlayer.getSession(), vol);
     }
 
     unpause() {
-        this._castPlayer.sendMessage({
+        void this.castPlayer.sendMessage({
             options: {},
             command: 'Unpause'
         });
     }
 
     playPause() {
-        this._castPlayer.sendMessage({
+        void this.castPlayer.sendMessage({
             options: {},
             command: 'PlayPause'
         });
     }
 
     pause() {
-        this._castPlayer.sendMessage({
+        void this.castPlayer.sendMessage({
             options: {},
             command: 'Pause'
         });
@@ -844,29 +958,29 @@ class ChromecastPlayer {
     stop() {
         // suppress playing a next media item after this one. See playbackManager
         this._playNextAfterEnded = false;
-        return this._castPlayer.sendMessage({
+        return this.castPlayer.sendMessage({
             options: {},
             command: 'Stop'
         });
     }
 
-    displayContent(options) {
-        this._castPlayer.sendMessage({
+    displayContent(options: CastMessageOptions) {
+        void this.castPlayer.sendMessage({
             options: options,
             command: 'DisplayContent'
         });
     }
 
-    setMute(isMuted) {
-        const castPlayer = this._castPlayer;
+    setMute(isMuted: boolean) {
+        const castPlayer = this.castPlayer;
 
         if (isMuted) {
-            castPlayer.sendMessage({
+            void castPlayer.sendMessage({
                 options: {},
                 command: 'Mute'
             });
         } else {
-            castPlayer.sendMessage({
+            void castPlayer.sendMessage({
                 options: {},
                 command: 'Unmute'
             });
@@ -874,23 +988,19 @@ class ChromecastPlayer {
     }
 
     getRepeatMode() {
-        let state = this.lastPlayerData || {};
-        state = state.PlayState || {};
-        return state.RepeatMode;
+        return this.lastPlayerData?.PlayState?.RepeatMode;
     }
 
     getQueueShuffleMode() {
-        let state = this.lastPlayerData || {};
-        state = state.PlayState || {};
-        return state.ShuffleMode;
+        return this.lastPlayerData?.PlayState?.ShuffleMode;
     }
 
     playTrailers() {
         console.warn('[chromecastPlayer] Playing trailers is not supported.');
     }
 
-    setRepeatMode(mode) {
-        this._castPlayer.sendMessage({
+    setRepeatMode(mode: RepeatMode) {
+        void this.castPlayer.sendMessage({
             options: {
                 RepeatMode: mode
             },
@@ -903,156 +1013,126 @@ class ChromecastPlayer {
     }
 
     toggleMute() {
-        this._castPlayer.sendMessage({
+        void this.castPlayer.sendMessage({
             options: {},
             command: 'ToggleMute'
         });
     }
 
     audioTracks() {
-        let state = this.lastPlayerData || {};
-        state = state.NowPlayingItem || {};
-        const streams = state.MediaStreams || [];
+        const streams = this.lastPlayerData?.NowPlayingItem?.MediaStreams || [];
         return streams.filter(function (s) {
             return s.Type === 'Audio';
         });
     }
 
     getAudioStreamIndex() {
-        let state = this.lastPlayerData || {};
-        state = state.PlayState || {};
-        return state.AudioStreamIndex;
+        return this.lastPlayerData?.PlayState?.AudioStreamIndex;
     }
 
     subtitleTracks() {
-        let state = this.lastPlayerData || {};
-        state = state.NowPlayingItem || {};
-        const streams = state.MediaStreams || [];
+        const streams = this.lastPlayerData?.NowPlayingItem?.MediaStreams || [];
         return streams.filter(function (s) {
             return s.Type === 'Subtitle';
         });
     }
 
     getSubtitleStreamIndex() {
-        let state = this.lastPlayerData || {};
-        state = state.PlayState || {};
-        return state.SubtitleStreamIndex;
+        return this.lastPlayerData?.PlayState?.SubtitleStreamIndex;
     }
 
     getMaxStreamingBitrate() {
-        let state = this.lastPlayerData || {};
-        state = state.PlayState || {};
-        return state.MaxStreamingBitrate;
+        return this.lastPlayerData?.PlayState?.MaxStreamingBitrate;
     }
 
     getVolume() {
-        let state = this.lastPlayerData || {};
-        state = state.PlayState || {};
+        const volumeLevel = this.lastPlayerData?.PlayState?.VolumeLevel;
 
-        return state.VolumeLevel == null ? 100 : state.VolumeLevel;
+        return volumeLevel == null ? 100 : volumeLevel;
     }
 
-    isPlaying(mediaType) {
-        const state = this.lastPlayerData || {};
-        return state.NowPlayingItem != null && (state.NowPlayingItem.MediaType === mediaType || !mediaType);
+    isPlaying(mediaType?: MediaType | string) {
+        const nowPlayingItem = this.lastPlayerData?.NowPlayingItem;
+        return nowPlayingItem != null && (nowPlayingItem.MediaType === mediaType || !mediaType);
     }
 
     isPlayingVideo() {
-        let state = this.lastPlayerData || {};
-        state = state.NowPlayingItem || {};
-        return state.MediaType === 'Video';
+        return this.lastPlayerData?.NowPlayingItem?.MediaType === 'Video';
     }
 
     isPlayingAudio() {
-        let state = this.lastPlayerData || {};
-        state = state.NowPlayingItem || {};
-        return state.MediaType === 'Audio';
+        return this.lastPlayerData?.NowPlayingItem?.MediaType === 'Audio';
     }
 
-    currentTime(val) {
+    currentTime(val?: number | null) {
         if (val != null) {
             return this.seek(val * 10000);
         }
 
-        let state = this.lastPlayerData || {};
-        state = state.PlayState || {};
-        return state.PositionTicks / 10000;
+        // Number() matches the implicit coercion of a missing value (NaN for undefined, 0 for null)
+        return Number(this.lastPlayerData?.PlayState?.PositionTicks) / 10000;
     }
 
     duration() {
-        let state = this.lastPlayerData || {};
-        state = state.NowPlayingItem || {};
-        return state.RunTimeTicks;
+        return this.lastPlayerData?.NowPlayingItem?.RunTimeTicks;
     }
 
     getBufferedRanges() {
-        let state = this.lastPlayerData || {};
-        state = state.PlayState || {};
-        return state.BufferedRanges || [];
+        return this.lastPlayerData?.PlayState?.BufferedRanges || [];
     }
 
     paused() {
-        let state = this.lastPlayerData || {};
-        state = state.PlayState || {};
-
-        return state.IsPaused;
+        return this.lastPlayerData?.PlayState?.IsPaused;
     }
 
     isMuted() {
-        let state = this.lastPlayerData || {};
-        state = state.PlayState || {};
-
-        return state.IsMuted;
+        return this.lastPlayerData?.PlayState?.IsMuted;
     }
 
-    shuffle(item) {
-        const apiClient = ServerConnections.getApiClient(item.ServerId);
+    shuffle(item: BaseItemDto) {
+        const apiClient = requireApiClient(ServerConnections.getApiClient(item.ServerId));
         const userId = apiClient.getCurrentUserId();
 
-        const instance = this;
-
-        apiClient.getItem(userId, item.Id).then(function (fetchedItem) {
-            instance.playWithCommand({
+        void apiClient.getItem(userId, item.Id!).then(fetchedItem => {
+            void this.playWithCommand({
                 items: [fetchedItem]
             }, 'Shuffle');
         });
     }
 
-    instantMix(item) {
-        const apiClient = ServerConnections.getApiClient(item.ServerId);
+    instantMix(item: BaseItemDto) {
+        const apiClient = requireApiClient(ServerConnections.getApiClient(item.ServerId));
         const userId = apiClient.getCurrentUserId();
 
-        const instance = this;
-
-        apiClient.getItem(userId, item.Id).then(function (fetchedItem) {
-            instance.playWithCommand({
+        void apiClient.getItem(userId, item.Id!).then(fetchedItem => {
+            void this.playWithCommand({
                 items: [fetchedItem]
             }, 'InstantMix');
         });
     }
 
-    canPlayMediaType(mediaType) {
+    canPlayMediaType(mediaType?: string | null) {
         mediaType = (mediaType || '').toLowerCase();
         return mediaType === 'audio' || mediaType === 'video';
     }
 
-    canQueueMediaType(mediaType) {
+    canQueueMediaType(mediaType?: string | null) {
         return this.canPlayMediaType(mediaType);
     }
 
-    queue(options) {
-        this.playWithCommand(options, 'PlayLast');
+    queue(options: CastPlayOptions) {
+        void this.playWithCommand(options, 'PlayLast');
     }
 
-    queueNext(options) {
-        this.playWithCommand(options, 'PlayNext');
+    queueNext(options: CastPlayOptions) {
+        void this.playWithCommand(options, 'PlayNext');
     }
 
     /*
      * play
      * options.items[]: Id, IsFolder, MediaType, Name, ServerId, Type, ...
      */
-    play(options) {
+    play(options: CastPlayOptions) {
         if (options.items) {
             return this.playWithCommand(options, 'PlayNow');
         } else {
@@ -1060,14 +1140,13 @@ class ChromecastPlayer {
                 throw new Error('serverId required!');
             }
 
-            const instance = this;
-            const apiClient = ServerConnections.getApiClient(options.serverId);
+            const apiClient = requireApiClient(ServerConnections.getApiClient(options.serverId));
 
             return getItemsForPlayback(apiClient, {
-                Ids: options.ids.join(',')
-            }).then(function (result) {
+                Ids: options.ids!.join(',')
+            }).then(result => {
                 options.items = result.Items;
-                return instance.playWithCommand(options, 'PlayNow');
+                return this.playWithCommand(options, 'PlayNow');
             });
         }
     }
@@ -1110,7 +1189,7 @@ class ChromecastPlayer {
     }
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    clearQueue(currentTime) {
+    clearQueue(currentTime?: number) {
         // not supported yet
     }
 }

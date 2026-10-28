@@ -103,6 +103,7 @@ export declare global {
     }
 
     interface Window {
+        appMode?: string;
         ApiClient: ApiClient;
         Events: Events;
         NativeShell?: NativeShell;
