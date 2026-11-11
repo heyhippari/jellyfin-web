@@ -1337,7 +1337,7 @@ export class HtmlVideoPlayer {
                 throw new Error(response);
             }
 
-            return response.json();
+            return await response.json();
         } finally {
             this.decrementFetchQueue();
         }

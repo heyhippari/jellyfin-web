@@ -155,6 +155,7 @@ export function ajax(request: AjaxRequest) {
                 return response;
             }
         } else {
+            // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors -- callers inspect the Response object directly
             return Promise.reject(response);
         }
     }, function (err) {

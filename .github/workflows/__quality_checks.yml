@@ -35,7 +35,7 @@ jobs:
       matrix:
         command:
           - build:es-check
-          - lint
+          - lint:ci
           - stylelint
           - build:check
           - test

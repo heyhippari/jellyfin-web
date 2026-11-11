@@ -77,7 +77,7 @@ export function waitForEventOnce(
 
         const rejectCallback = (event: EmitterEvent) => {
             clearAll();
-            reject(event.type);
+            reject(new Error(`Rejected by event: ${event.type}`));
         };
 
         Events.on(emitter, eventType, callback);

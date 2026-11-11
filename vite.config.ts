@@ -1,5 +1,5 @@
-/// <reference types="vitest" />
 /// <reference types="vite/client" />
+/// <reference types="vitest/config" />
 import { defineConfig } from 'vite';
 import tsconfigPaths from 'vite-tsconfig-paths';
 

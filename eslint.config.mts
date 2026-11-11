@@ -2,9 +2,10 @@
 
 import eslint from '@eslint/js';
 import comments from '@eslint-community/eslint-plugin-eslint-comments/configs';
+// eslint-disable-next-line import/no-unresolved
+import { defineConfig, globalIgnores } from 'eslint/config';
 import compat from 'eslint-plugin-compat';
 import globals from 'globals';
-// @ts-expect-error Missing type definition
 import importPlugin from 'eslint-plugin-import';
 import jsxA11y from 'eslint-plugin-jsx-a11y';
 import reactPlugin from 'eslint-plugin-react';
@@ -15,13 +16,13 @@ import stylistic from '@stylistic/eslint-plugin';
 // eslint-disable-next-line import/no-unresolved
 import tseslint from 'typescript-eslint';
 
-export default tseslint.config(
+export default defineConfig(
     eslint.configs.recommended,
     tseslint.configs.recommended,
-    // @ts-expect-error Harmless type mismatch in dependency
     comments.recommended,
     compat.configs['flat/recommended'],
     importPlugin.flatConfigs.errors,
+    // @ts-expect-error Harmless type mismatch in dependency
     sonarjs.configs.recommended,
 
     reactPlugin.configs.flat.recommended,
@@ -35,14 +36,19 @@ export default tseslint.config(
     jsxA11y.flatConfigs.recommended,
 
     // Global ignores
+    globalIgnores([
+        'node_modules',
+        'coverage',
+        'dist',
+        '.idea',
+        '.vscode'
+    ]),
+
+    // Unused disable directives are errors
     {
-        ignores: [
-            'node_modules',
-            'coverage',
-            'dist',
-            '.idea',
-            '.vscode'
-        ]
+        linterOptions: {
+            reportUnusedDisableDirectives: 'error'
+        }
     },
 
     // Global style rules
@@ -62,14 +68,12 @@ export default tseslint.config(
                     'newIsCapExceptionPattern': String.raw`\.default$`
                 }
             ],
-            'no-duplicate-imports': 'error',
-            'no-empty-function': 'error',
             'no-extend-native': 'error',
             'no-lonely-if': 'error',
             'no-nested-ternary': 'error',
             'no-redeclare': 'off',
             '@typescript-eslint/no-redeclare': ['error', { builtinGlobals: false }],
-            'no-restricted-globals': ['error'].concat(restrictedGlobals),
+            'no-restricted-globals': ['error', ...restrictedGlobals],
             'no-restricted-properties': [
                 'error',
                 {
@@ -78,11 +82,9 @@ export default tseslint.config(
                 }
             ],
             'no-return-assign': 'error',
-            'no-return-await': 'error',
             'no-sequences': ['error', { 'allowInParentheses': false }],
             'no-shadow': 'off',
             '@typescript-eslint/no-shadow': 'error',
-            'no-throw-literal': 'error',
             'no-undef-init': 'error',
             'no-unneeded-ternary': 'error',
             'no-unused-expressions': 'off',
@@ -96,7 +98,6 @@ export default tseslint.config(
             'no-void': ['error', { 'allowAsStatement': true }],
             'one-var': ['error', 'never'],
             'prefer-const': ['error', { 'destructuring': 'all' }],
-            'prefer-promise-reject-errors': ['error', { 'allowEmptyReject': true }],
             '@typescript-eslint/prefer-for-of': 'error',
             'radix': 'error',
             'yoda': 'error',
@@ -175,7 +176,7 @@ export default tseslint.config(
 
     // Config files use node globals
     {
-        ignores: [ 'src' ],
+        files: ['*.{js,cjs,mjs,ts}'],
         languageOptions: {
             globals: {
                 ...globals.node
@@ -185,8 +186,7 @@ export default tseslint.config(
 
     // Config files are commonjs by default
     {
-        files: [ '**/*.{cjs,js}' ],
-        ignores: [ 'src' ],
+        files: [ '*.{cjs,js}' ],
         languageOptions: {
             sourceType: 'commonjs'
         },
@@ -368,7 +368,12 @@ export default tseslint.config(
             ],
             '@typescript-eslint/no-deprecated': 'warn',
             '@typescript-eslint/no-floating-promises': 'error',
-            '@typescript-eslint/prefer-string-starts-ends-with': 'error'
+            '@typescript-eslint/prefer-string-starts-ends-with': 'error',
+            '@typescript-eslint/return-await': 'error',
+            '@typescript-eslint/no-empty-function': 'error',
+            '@typescript-eslint/only-throw-error': ['error', { 'allowThrowingAny': true }],
+            '@typescript-eslint/prefer-promise-reject-errors': ['error', { 'allowEmptyReject': true, 'allowThrowingAny': true }],
+            'import/no-duplicates': 'error'
         }
     },
 
