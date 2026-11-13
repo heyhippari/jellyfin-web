@@ -11,7 +11,6 @@ import ErrorBoundary from 'components/router/ErrorBoundary';
 
 export const DASHBOARD_APP_PATHS = {
     Dashboard: 'dashboard',
-    MetadataManager: 'metadata',
     PluginConfig: 'configurationpage'
 };
 
@@ -34,16 +33,6 @@ export const DASHBOARD_APP_ROUTES: RouteObject[] = [
                         ],
                         errorElement: <ErrorBoundary pageClasses={[ 'type-interior' ]} />
                     },
-
-                    /* NOTE: The metadata editor might deserve a dedicated app in the future */
-                    toViewManagerPageRoute({
-                        path: DASHBOARD_APP_PATHS.MetadataManager,
-                        pageProps: {
-                            controller: 'edititemmetadata',
-                            view: 'edititemmetadata.html'
-                        }
-                    }),
-
                     {
                         path: DASHBOARD_APP_PATHS.PluginConfig,
                         element: <ServerContentPage view='/web/configurationpage' />

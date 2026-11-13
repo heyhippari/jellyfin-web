@@ -18,6 +18,8 @@ const importRoute = (page: string, type: AppType) => {
     switch (type) {
         case AppType.Dashboard:
             return import(/* webpackChunkName: "[request]" */ `../../apps/dashboard/routes/${page}`);
+        case AppType.Metadata:
+            return import(/* webpackChunkName: "[request]" */ `../../apps/metadata/routes/${page}`);
         case AppType.Modern:
             return import(/* webpackChunkName: "[request]" */ `../../apps/modern/routes/${page}`);
         case AppType.Legacy:

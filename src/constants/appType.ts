@@ -7,6 +7,8 @@ export enum AppType {
     Dashboard = 'dashboard',
     /** The legacy app. */
     Legacy = 'legacy',
+    /** The metadata editor app. */
+    Metadata = 'metadata',
     /** The modern React app. */
     Modern = 'modern',
     /** The startup wizard app. */

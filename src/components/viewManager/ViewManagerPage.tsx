@@ -45,6 +45,12 @@ const importController = (
                 import(/* webpackChunkName: "[request]" */ `../../apps/dashboard/controllers/${view}`)
                     .then(html => globalize.translateHtml(html))
             ]);
+        case AppType.Metadata:
+            return Promise.all([
+                import(/* webpackChunkName: "[request]" */ `../../apps/metadata/controllers/${controller}`),
+                import(/* webpackChunkName: "[request]" */ `../../apps/metadata/controllers/${view}`)
+                    .then(html => globalize.translateHtml(html))
+            ]);
         case AppType.Wizard:
             return Promise.all([
                 import(/* webpackChunkName: "[request]" */ `../../apps/wizard/controllers/${controller}`),

@@ -1,5 +1,5 @@
 import loading from 'components/loading/loading';
-import { getCurrentItemId, setCurrentItemId } from 'scripts/editorsidebar';
+import { getCurrentItemId, setCurrentItemId } from './editorsidebar';
 
 function reload(context, itemId) {
     loading.show();

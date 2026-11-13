@@ -304,7 +304,7 @@ let selectedNodeId;
 $(document).on('itemsaved', '.metadataEditorPage', function (e, item) {
     updateEditorNode(this, item);
 }).on('pagebeforeshow', '.metadataEditorPage', function () {
-    import('../styles/metadataeditor.scss');
+    import('styles/metadataeditor.scss');
 }).on('pagebeforeshow', '.metadataEditorPage', function () {
     const page = this;
     Dashboard.getCurrentUser().then(function (user) {
